@@ -231,4 +231,159 @@ mod tests {
         assert_eq!(f.count(ActivityKind::Send), 0);
     }
 
+    // --- Task 14: source-scrape pins on the call sites in other files ------
+    //
+    // Same technique as `util/signal_guard.rs`'s `production_only` /
+    // `strip_line_comments`: cut the file at its own test module so a needle
+    // appearing only in a test can't satisfy the pin, and drop `//` comments
+    // so the pin can't match its own explanatory prose.
+
+    fn production_only(src: &str) -> &str {
+        match src.find("\nmod tests") {
+            Some(i) => &src[..i],
+            None => src,
+        }
+    }
+
+    fn strip_line_comments(src: &str) -> String {
+        src.lines()
+            .map(|l| match l.find("//") {
+                Some(i) => &l[..i],
+                None => l,
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// Body of `fn <name>(...) { ... }`, delimited by balancing the brace the
+    /// function opens. Anchored on `prefix` (e.g. `"pub async fn
+    /// handle_get_response"`) rather than a bare function name, so a helper
+    /// or a comment mentioning the name elsewhere in the file can't be
+    /// mistaken for the definition.
+    fn fn_body<'a>(src: &'a str, prefix: &str) -> &'a str {
+        let start = src
+            .find(prefix)
+            .unwrap_or_else(|| panic!("{prefix:?} not found in source"));
+        let open = src[start..]
+            .find('{')
+            .map(|i| start + i)
+            .unwrap_or_else(|| panic!("no `{{` found after {prefix:?}"));
+        let bytes = src.as_bytes();
+        let mut depth = 0i32;
+        for (i, byte) in bytes.iter().enumerate().skip(open) {
+            match byte {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return &src[open..=i];
+                    }
+                }
+                _ => {}
+            }
+        }
+        panic!("unbalanced braces after {prefix:?}");
+    }
+
+    /// `network_activity::end(ActivityKind::Fetch, ...)` must be the first
+    /// statement of `handle_get_response`, before the backward-probe early
+    /// `return` (freenet/river issue tracked by this plan) — otherwise a
+    /// probe response leaves the Fetch entry stuck until the 20s expiry.
+    #[test]
+    fn get_response_ends_fetch_before_any_early_return() {
+        let src = strip_line_comments(production_only(include_str!(
+            "freenet_api/response_handler/get_response.rs"
+        )));
+        let body = fn_body(&src, "pub async fn handle_get_response");
+
+        let end_pos = body
+            .find("network_activity::end(ActivityKind::Fetch")
+            .expect(
+                "handle_get_response must call \
+                 network_activity::end(ActivityKind::Fetch, ...) so the indicator's Fetch \
+                 count is settled on response",
+            );
+
+        if let Some(return_pos) = body.find("return") {
+            assert!(
+                end_pos < return_pos,
+                "network_activity::end(Fetch) must run before the first early `return` \
+                 (e.g. the backward-probe routing) — otherwise that path leaves the Fetch \
+                 entry stuck until the 20s expiry"
+            );
+        }
+    }
+
+    /// `network_activity::end(ActivityKind::Send, ...)` must be called from
+    /// `handle_update_response`, so an outbound UPDATE's Send entry is
+    /// settled when the node acknowledges it.
+    #[test]
+    fn update_response_ends_send() {
+        let src = strip_line_comments(production_only(include_str!(
+            "freenet_api/response_handler/update_response.rs"
+        )));
+        let body = fn_body(&src, "pub fn handle_update_response");
+
+        assert!(
+            body.contains("network_activity::end(ActivityKind::Send"),
+            "handle_update_response must call \
+             network_activity::end(ActivityKind::Send, ...) so the indicator's Send count \
+             is settled on response"
+        );
+    }
+
+    /// The `ConnectionLost` arm must clear every in-flight entry — a response
+    /// tracked against a socket that just died will never arrive.
+    #[test]
+    fn connection_lost_clears_in_flight() {
+        let src = strip_line_comments(production_only(include_str!(
+            "freenet_api/freenet_synchronizer.rs"
+        )));
+        let start = src
+            .find("SynchronizerMessage::ConnectionLost =>")
+            .expect("ConnectionLost arm not found");
+        let rest = &src[start..];
+        // Delimit to the next match arm so a `clear_all()` call anywhere else
+        // in the file (e.g. the Connect arm) can't satisfy this pin.
+        let end = rest[1..]
+            .find("SynchronizerMessage::")
+            .map(|i| i + 1)
+            .unwrap_or(rest.len());
+        let arm = &rest[..end];
+
+        assert!(
+            arm.contains("network_activity::clear_all()"),
+            "the ConnectionLost arm must call network_activity::clear_all() — a response \
+             for a dead socket will never arrive, so its in-flight entries must not wait \
+             out the 20s expiry"
+        );
+    }
+
+    /// The `Connect` -> `Ok(())` arm must also clear every in-flight entry:
+    /// any request tracked against the PREVIOUS (now-replaced) socket will
+    /// never get a response on the new one.
+    #[test]
+    fn connect_ok_clears_in_flight() {
+        let src = strip_line_comments(production_only(include_str!(
+            "freenet_api/freenet_synchronizer.rs"
+        )));
+        let anchor = "Connection established successfully";
+        let start = src
+            .find(anchor)
+            .expect("\"Connection established successfully\" not found");
+        // A tight window right after the log line: the Connect arm's body is
+        // long and itself mentions `SynchronizerMessage::` many times (nested
+        // match arms for ConnectionStable/ProcessRooms/etc.), so delimiting
+        // to "next SynchronizerMessage::" like the ConnectionLost pin above
+        // would not isolate this call the same way.
+        let window_end = (start + 300).min(src.len());
+        let window = &src[start..window_end];
+
+        assert!(
+            window.contains("network_activity::clear_all()"),
+            "the Connect -> Ok(()) arm must call network_activity::clear_all() shortly \
+             after establishing the connection — any in-flight entry tracked against the \
+             previous (dead) socket will never get its response"
+        );
+    }
 }
