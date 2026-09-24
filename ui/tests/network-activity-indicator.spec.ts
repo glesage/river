@@ -5,9 +5,9 @@ import { selectListedRoom } from "./example-room";
 // (docs/plans/2026-09-24-network-activity-indicator.md): ten accent-blue
 // dots that appear while River is connecting, reconnecting, joining a room,
 // loading/syncing rooms, or (Phase 2) has a GET/UPDATE in flight. It is
-// debounced 200ms — a load that finishes sooner shows nothing — and held on
-// screen for at least 1.5s (one full CSS wave period) once shown, so a short
-// load still reads as one ripple rather than a blip.
+// debounced 500ms — a load that finishes sooner shows nothing — and held on
+// screen for at least 1s once shown, so a short load still reads as a ripple
+// rather than a blip.
 //
 // PLACEMENT: inside the chat section, never fixed to the window. With a room
 // open the dots dock at the bottom of the message history, just above the
@@ -35,10 +35,10 @@ import { selectListedRoom } from "./example-room";
 //     tracker directly, independent of any real network traffic.
 //
 // Two timing rules apply to every test below (plan Task 9):
-//   - Appearing takes ~200ms after the triggering hook call. The default
+//   - Appearing takes ~500ms after the triggering hook call. The default
 //     `toBeVisible()` timeout (5s) already absorbs that, so no special
 //     handling is needed for "the dots should show up" assertions.
-//   - Disappearing can take up to 1.5s after the load ends (the minimum-
+//   - Disappearing can take up to 1s after the load ends (the minimum-
 //     visible hold). Every "gone" assertion therefore uses
 //     `toHaveCount(0, { timeout: 3_000 })` rather than the default —  a bare
 //     `toHaveCount(0)` would race the hold and flake.
@@ -94,7 +94,7 @@ async function openRoomWithComposer(page: Page, isMobile: boolean) {
 // about to appear. Past the debounce, a pending show has either mounted (and
 // the count waits out its hold) or been cancelled.
 async function settleIdle(page: Page) {
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(600);
   await expect(page.getByTestId(INDICATOR_TESTID)).toHaveCount(0, {
     timeout: 3_000,
   });
@@ -177,17 +177,18 @@ for (const { label, viewport, isMobile } of [
       await expect(page.getByTestId(STATUS_TESTID)).toHaveText("");
     });
 
-    test("a load shorter than 200ms never shows the dots", async ({
+    test("a load shorter than 500ms never shows the dots", async ({
       page,
     }) => {
       await page.goto("/");
       await waitForApp(page);
       const readLog = await recordPresence(page);
 
+      // 300ms: past the old 200ms debounce, so this fails if it regresses.
       await page.evaluate(() => {
         const w = window as any;
         w.__riverTest.setSyncStatus("connecting");
-        setTimeout(() => w.__riverTest.setSyncStatus("disconnected"), 100);
+        setTimeout(() => w.__riverTest.setSyncStatus("disconnected"), 300);
       });
 
       await page.waitForTimeout(2_000);
@@ -196,7 +197,7 @@ for (const { label, viewport, isMobile } of [
       expect(log.some((e) => e.present)).toBe(false);
     });
 
-    test("the dots appear only after the 200ms debounce", async ({
+    test("the dots appear only after the 500ms debounce", async ({
       page,
     }) => {
       await page.goto("/");
@@ -219,12 +220,12 @@ for (const { label, viewport, isMobile } of [
       const delta = shown!.t - t0;
       // 5ms slack for timer rounding. t0 is taken before the hook's own
       // `defer`, so the true gap can only be larger, never smaller.
-      expect(delta).toBeGreaterThanOrEqual(195);
+      expect(delta).toBeGreaterThanOrEqual(495);
       // Generous upper bound so a stalled timer doesn't pass as "debounced".
-      expect(delta).toBeLessThan(1_000);
+      expect(delta).toBeLessThan(1_500);
     });
 
-    test("once shown, the dots stay for at least 1.5s", async ({ page }) => {
+    test("once shown, the dots stay for at least 1s", async ({ page }) => {
       await page.goto("/");
       await waitForApp(page);
       const readLog = await recordPresence(page);
@@ -244,11 +245,11 @@ for (const { label, viewport, isMobile } of [
       expect(hidden).toBeTruthy();
 
       const delta = hidden!.t - shown!.t;
-      expect(delta).toBeGreaterThanOrEqual(1_450);
-      expect(delta).toBeLessThan(2_500);
+      expect(delta).toBeGreaterThanOrEqual(950);
+      expect(delta).toBeLessThan(2_000);
     });
 
-    test("a load longer than 1.5s hides as soon as it ends", async ({
+    test("a load longer than 1s hides as soon as it ends", async ({
       page,
     }) => {
       await page.goto("/");
@@ -257,7 +258,7 @@ for (const { label, viewport, isMobile } of [
 
       await setSyncStatus(page, "connecting");
       await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
-      // Already visible for longer than the 1.5s minimum before we end it.
+      // Already visible for longer than the 1s minimum before we end it.
       await page.waitForTimeout(2_500);
 
       await page.evaluate(() => {
@@ -293,7 +294,7 @@ for (const { label, viewport, isMobile } of [
       await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
 
       // 800ms, not less: if the hold clock were reset by the second busy
-      // spell, the dots would hide ~shown_t + 800 + 1500, comfortably past the
+      // spell, the dots would hide ~shown_t + 800 + 1000, comfortably past the
       // bound below. A shorter wait leaves that mutation within ~50ms of it.
       await setSyncStatus(page, "disconnected");
       await page.waitForTimeout(800);
@@ -313,8 +314,8 @@ for (const { label, viewport, isMobile } of [
 
       // The "clock not reset" rule: total visible time is bounded by the
       // ORIGINAL shown_t + the minimum, plus slack — not by the last busy
-      // spell restarting a fresh 1.5s.
-      expect(hidden!.t).toBeLessThanOrEqual(shown!.t + 1_500 + 500);
+      // spell restarting a fresh 1s.
+      expect(hidden!.t).toBeLessThanOrEqual(shown!.t + 1_000 + 500);
     });
 
     test("with no room open, ten dots sit in the no-room screen, not on the window", async ({
@@ -668,9 +669,9 @@ for (const { label, viewport, isMobile } of [
       await expect(indicator).toHaveCount(0, { timeout: 3_000 });
     });
 
-    test("a send faster than 200ms shows nothing", async ({ page }) => {
+    test("a send faster than 500ms shows nothing", async ({ page }) => {
       // The everyday case the debounce exists for: most sends round-trip
-      // well under 200ms, so they must never cause a visible blip.
+      // well under 500ms, so they must never cause a visible blip.
       await page.goto("/");
       await waitForApp(page);
       await setSyncStatus(page, "connected");

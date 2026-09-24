@@ -8,8 +8,8 @@
 //! Two pure pieces decide what it shows, so both are unit-testable natively:
 //!
 //! - [`loading_reason`] says whether River is busy **right now**, and why.
-//! - [`DisplayGate`] decides whether the dots are **on screen**: a 200 ms
-//!   debounce before they appear and a 1.5 s minimum once they have.
+//! - [`DisplayGate`] decides whether the dots are **on screen**: a 500 ms
+//!   debounce before they appear and a 1 s minimum once they have.
 //!
 //! [`NetworkActivityIndicator`], mounted once in `App`, owns the gate and the
 //! screen-reader live region. The places that draw the dots read the gate
@@ -127,8 +127,8 @@ pub fn NetworkActivityIndicator() -> Element {
         }
     });
 
-    // The GATED reason, not the raw memo: the label obeys the same 200 ms
-    // debounce and 1.5 s minimum as the dots.
+    // The GATED reason, not the raw memo: the label obeys the same 500 ms
+    // debounce and 1 s minimum as the dots.
     let label = visible_activity().map(LoadingReason::label).unwrap_or("");
 
     rsx! {
@@ -307,10 +307,12 @@ pub(crate) fn loading_reason(i: &ActivityInputs) -> Option<LoadingReason> {
 }
 
 /// Loading must still be in progress this long after it started before the dots appear.
-pub(crate) const SHOW_DEBOUNCE_MS: f64 = 200.0;
-/// Once shown, the dots stay at least this long. Equal to the CSS wave period
-/// (`river-flow-wave 1.5s`), so the minimum is one full ripple.
-pub(crate) const MIN_VISIBLE_MS: f64 = 1_500.0;
+/// Long enough that the wake refresh's fast round trips on a tab switch stay
+/// hidden.
+pub(crate) const SHOW_DEBOUNCE_MS: f64 = 500.0;
+/// Once shown, the dots stay at least this long. Shorter than the CSS wave
+/// period (`river-flow-wave 1.5s`), so a short load shows part of one ripple.
+pub(crate) const MIN_VISIBLE_MS: f64 = 1_000.0;
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub(crate) enum GatePhase {
@@ -423,11 +425,10 @@ impl DisplayGate {
 // ---- Wave motion ----------------------------------------------------------
 //
 // Every dot rides the same 1.5 s travelling wave (`river-flow-wave` in
-// main.css), so the crest still reads as one ripple crossing the row and the
-// 1.5 s minimum is still one ripple. What varies per dot, so it moves like
-// water rather than a metronome: how high it rises, a nudge to its place on
-// the wave, which smooth curve it eases along, and a slower second swell on its
-// own period. The periods do not divide each other, so the row never exactly
+// main.css), so the crest still reads as one ripple crossing the row. What
+// varies per dot, so it moves like water rather than a metronome: how high it
+// rises, a nudge to its place on the wave, which smooth curve it eases along,
+// and a slower second swell on its own period. The periods do not divide each other, so the row never exactly
 // repeats. Every curve is a monotone cubic-bezier: no steps, no linear, no
 // overshoot.
 
@@ -705,15 +706,15 @@ mod tests {
     fn a_load_shorter_than_the_debounce_never_shows() {
         let (g, wake) = DisplayGate::default().on_reason(C, 0.0);
         assert_eq!(g.phase, GatePhase::Pending { since: 0.0 });
-        assert_eq!(wake, Some(200.0));
+        assert_eq!(wake, Some(500.0));
         assert_eq!(g.visible_reason(), None);
 
-        let (g, wake) = g.on_reason(None, 150.0);
+        let (g, wake) = g.on_reason(None, 400.0);
         assert_eq!(g.phase, GatePhase::Idle);
         assert_eq!(wake, None);
         assert_eq!(g.visible_reason(), None);
 
-        let g = g.on_tick(200.0);
+        let g = g.on_tick(500.0);
         assert_eq!(
             g.phase,
             GatePhase::Idle,
@@ -725,23 +726,23 @@ mod tests {
     #[test]
     fn shows_once_the_debounce_elapses() {
         let (g, _) = DisplayGate::default().on_reason(C, 0.0);
-        let g = g.on_tick(200.0);
-        assert_eq!(g.phase, GatePhase::Shown { shown_at: 200.0 });
+        let g = g.on_tick(500.0);
+        assert_eq!(g.phase, GatePhase::Shown { shown_at: 500.0 });
         assert_eq!(g.visible_reason(), C);
     }
 
-    /// `shown_at` is when the tick actually fired, not `since + 200`, so the
+    /// `shown_at` is when the tick actually fired, not `since + 500`, so the
     /// minimum is measured from when the user could first see the dots.
     #[test]
     fn a_late_tick_measures_the_minimum_from_when_it_fired() {
-        let g = gate(GatePhase::Pending { since: 0.0 }).on_tick(900.0);
-        assert_eq!(g.phase, GatePhase::Shown { shown_at: 900.0 });
+        let g = gate(GatePhase::Pending { since: 0.0 }).on_tick(1200.0);
+        assert_eq!(g.phase, GatePhase::Shown { shown_at: 1200.0 });
     }
 
     #[test]
     fn an_early_tick_is_a_noop() {
         let g = gate(GatePhase::Pending { since: 0.0 });
-        assert_eq!(g.on_tick(199.0), g);
+        assert_eq!(g.on_tick(499.0), g);
     }
 
     /// An early tick is a no-op, so the caller needs to know when to try again.
@@ -749,61 +750,61 @@ mod tests {
     fn pending_deadline_tells_an_early_timer_when_to_retry() {
         assert_eq!(
             gate(GatePhase::Pending { since: 10.0 }).pending_deadline(),
-            Some(210.0)
+            Some(510.0)
         );
         assert_eq!(
-            gate(GatePhase::Holding { shown_at: 200.0 }).pending_deadline(),
-            Some(1700.0)
+            gate(GatePhase::Holding { shown_at: 500.0 }).pending_deadline(),
+            Some(1500.0)
         );
         assert_eq!(DisplayGate::default().pending_deadline(), None);
         assert_eq!(
-            gate(GatePhase::Shown { shown_at: 200.0 }).pending_deadline(),
+            gate(GatePhase::Shown { shown_at: 500.0 }).pending_deadline(),
             None
         );
     }
 
     #[test]
     fn a_short_load_is_held_for_the_minimum() {
-        let (g, wake) = gate(GatePhase::Shown { shown_at: 200.0 }).on_reason(None, 250.0);
-        assert_eq!(g.phase, GatePhase::Holding { shown_at: 200.0 });
-        assert_eq!(wake, Some(1450.0));
+        let (g, wake) = gate(GatePhase::Shown { shown_at: 500.0 }).on_reason(None, 550.0);
+        assert_eq!(g.phase, GatePhase::Holding { shown_at: 500.0 });
+        assert_eq!(wake, Some(950.0));
 
-        let g = g.on_tick(1699.0);
-        assert_eq!(g.phase, GatePhase::Holding { shown_at: 200.0 });
-        let g = g.on_tick(1700.0);
+        let g = g.on_tick(1499.0);
+        assert_eq!(g.phase, GatePhase::Holding { shown_at: 500.0 });
+        let g = g.on_tick(1500.0);
         assert_eq!(g.phase, GatePhase::Idle);
         assert_eq!(g.visible_reason(), None);
     }
 
     #[test]
     fn the_hold_keeps_the_last_reason() {
-        let (g, _) = gate(GatePhase::Shown { shown_at: 200.0 }).on_reason(None, 250.0);
-        assert_eq!(g.phase, GatePhase::Holding { shown_at: 200.0 });
+        let (g, _) = gate(GatePhase::Shown { shown_at: 500.0 }).on_reason(None, 550.0);
+        assert_eq!(g.phase, GatePhase::Holding { shown_at: 500.0 });
         assert_eq!(g.visible_reason(), C);
     }
 
     #[test]
     fn a_long_load_hides_as_soon_as_it_ends() {
-        let (g, wake) = gate(GatePhase::Shown { shown_at: 200.0 }).on_reason(None, 3000.0);
+        let (g, wake) = gate(GatePhase::Shown { shown_at: 500.0 }).on_reason(None, 3000.0);
         assert_eq!(g.phase, GatePhase::Idle);
         assert_eq!(wake, None);
         assert_eq!(g.visible_reason(), None);
     }
 
-    /// The 1.5 s is a minimum on total visible time, not a fresh 1.5 s after
+    /// The 1 s is a minimum on total visible time, not a fresh 1 s after
     /// every flicker.
     #[test]
     fn busy_again_during_the_hold_keeps_the_original_clock() {
-        let g = gate(GatePhase::Holding { shown_at: 200.0 });
+        let g = gate(GatePhase::Holding { shown_at: 500.0 });
         let (g, wake) = g.on_reason(C, 900.0);
-        assert_eq!(g.phase, GatePhase::Shown { shown_at: 200.0 });
+        assert_eq!(g.phase, GatePhase::Shown { shown_at: 500.0 });
         assert_eq!(wake, None);
 
         let (g, wake) = g.on_reason(None, 1000.0);
-        assert_eq!(g.phase, GatePhase::Holding { shown_at: 200.0 });
-        assert_eq!(wake, Some(700.0));
+        assert_eq!(g.phase, GatePhase::Holding { shown_at: 500.0 });
+        assert_eq!(wake, Some(500.0));
 
-        assert_eq!(g.on_tick(1700.0).phase, GatePhase::Idle);
+        assert_eq!(g.on_tick(1500.0).phase, GatePhase::Idle);
     }
 
     #[test]
@@ -812,23 +813,23 @@ mod tests {
         let (g, _) = g.on_reason(None, 100.0);
         let (g, wake) = g.on_reason(C, 150.0);
         assert_eq!(g.phase, GatePhase::Pending { since: 150.0 });
-        assert_eq!(wake, Some(200.0));
+        assert_eq!(wake, Some(500.0));
 
-        let g = g.on_tick(200.0);
+        let g = g.on_tick(500.0);
         assert_eq!(
             g.phase,
             GatePhase::Pending { since: 150.0 },
             "the first debounce timer is stale and must change nothing"
         );
-        let g = g.on_tick(350.0);
-        assert_eq!(g.phase, GatePhase::Shown { shown_at: 350.0 });
+        let g = g.on_tick(650.0);
+        assert_eq!(g.phase, GatePhase::Shown { shown_at: 650.0 });
     }
 
     #[test]
     fn reason_updates_while_shown() {
-        let (g, wake) = gate(GatePhase::Shown { shown_at: 200.0 })
-            .on_reason(Some(LoadingReason::SyncingRooms), 400.0);
-        assert_eq!(g.phase, GatePhase::Shown { shown_at: 200.0 });
+        let (g, wake) = gate(GatePhase::Shown { shown_at: 500.0 })
+            .on_reason(Some(LoadingReason::SyncingRooms), 700.0);
+        assert_eq!(g.phase, GatePhase::Shown { shown_at: 500.0 });
         assert_eq!(wake, None);
         assert_eq!(g.visible_reason(), Some(LoadingReason::SyncingRooms));
     }
@@ -840,7 +841,7 @@ mod tests {
         assert_eq!(g.phase, GatePhase::Pending { since: 0.0 });
         assert_eq!(wake, None, "the original debounce timer still covers it");
         assert_eq!(
-            g.on_tick(200.0).visible_reason(),
+            g.on_tick(500.0).visible_reason(),
             Some(LoadingReason::LoadingRooms)
         );
     }
@@ -849,7 +850,7 @@ mod tests {
     fn ticks_in_idle_and_shown_are_noops() {
         let idle = DisplayGate::default();
         assert_eq!(idle.on_tick(10_000.0), idle);
-        let shown = gate(GatePhase::Shown { shown_at: 200.0 });
+        let shown = gate(GatePhase::Shown { shown_at: 500.0 });
         assert_eq!(shown.on_tick(10_000.0), shown);
     }
 
@@ -864,14 +865,14 @@ mod tests {
     fn shown_at_is_set_only_while_on_screen_and_survives_the_hold() {
         assert_eq!(DisplayGate::default().shown_at(), None);
         assert_eq!(gate(GatePhase::Pending { since: 0.0 }).shown_at(), None);
-        let shown = gate(GatePhase::Shown { shown_at: 200.0 });
-        assert_eq!(shown.shown_at(), Some(200.0));
-        let (held, _) = shown.on_reason(None, 300.0);
-        assert_eq!(held.shown_at(), Some(200.0));
-        let (back, _) = held.on_reason(C, 400.0);
+        let shown = gate(GatePhase::Shown { shown_at: 500.0 });
+        assert_eq!(shown.shown_at(), Some(500.0));
+        let (held, _) = shown.on_reason(None, 600.0);
+        assert_eq!(held.shown_at(), Some(500.0));
+        let (back, _) = held.on_reason(C, 700.0);
         assert_eq!(
             back.shown_at(),
-            Some(200.0),
+            Some(500.0),
             "the seed must not change mid-show"
         );
     }
@@ -1000,19 +1001,7 @@ mod tests {
     /// Product requirements: changing either should be a conscious edit here too.
     #[test]
     fn timing_constants_are_as_specified() {
-        assert_eq!(SHOW_DEBOUNCE_MS, 200.0);
-        assert_eq!(MIN_VISIBLE_MS, 1500.0);
-    }
-
-    /// The minimum is "one full ripple". If either side changes, that
-    /// rationale has to be revisited, not just one number.
-    #[test]
-    fn min_visible_matches_the_css_wave_period() {
-        let css = include_str!("../../assets/main.css");
-        assert!(
-            css.contains("river-flow-wave 1.5s"),
-            "main.css no longer runs river-flow-wave over 1.5s"
-        );
-        assert_eq!(MIN_VISIBLE_MS, 1500.0);
+        assert_eq!(SHOW_DEBOUNCE_MS, 500.0);
+        assert_eq!(MIN_VISIBLE_MS, 1000.0);
     }
 }
