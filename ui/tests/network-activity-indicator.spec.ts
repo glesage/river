@@ -3,12 +3,17 @@ import { selectListedRoom } from "./example-room";
 
 // Coverage for the network activity indicator
 // (docs/plans/2026-09-24-network-activity-indicator.md): ten accent-blue
-// dots, fixed at the bottom-centre of the page, that appear while River is
-// connecting, reconnecting, joining a room, loading/syncing rooms, or
-// (Phase 2) has a GET/UPDATE in flight. It is debounced 200ms — a load that
-// finishes sooner shows nothing — and held on screen for at least 1.5s (one
-// full CSS wave period) once shown, so a short load still reads as one
-// ripple rather than a blip.
+// dots that appear while River is connecting, reconnecting, joining a room,
+// loading/syncing rooms, or (Phase 2) has a GET/UPDATE in flight. It is
+// debounced 200ms — a load that finishes sooner shows nothing — and held on
+// screen for at least 1.5s (one full CSS wave period) once shown, so a short
+// load still reads as one ripple rather than a blip.
+//
+// PLACEMENT: inside the chat section, never fixed to the window. With a room
+// open the dots dock at the bottom of the message history, just above the
+// composer, and the history gains bottom padding while they show so they never
+// cover the last message. With no room open they sit in the flow of the
+// no-room screen, which is where most tests below observe them.
 //
 // PREMISES this spec relies on (see the plan's "Premises of the no-sync
 // example build" and `example_data.rs::install_test_hooks`):
@@ -69,6 +74,19 @@ async function endActivity(page: Page, kind: "fetch" | "send") {
   await page.evaluate((k) => {
     (window as any).__riverTest.endActivity(k);
   }, kind);
+}
+
+// Open a room that has a composer: self owns "Your Private Room" in the
+// example data. Not simply the first room item: in some rooms self is not a
+// member, and the composer is replaced by the "you're not a member" notice.
+async function openRoomWithComposer(page: Page, isMobile: boolean) {
+  if (isMobile) {
+    await page.getByTestId("hamburger-rooms-button").click();
+  }
+  await selectListedRoom(page, "Your Private Room");
+  await expect(page.getByTestId("message-composer")).toBeVisible({
+    timeout: 5_000,
+  });
 }
 
 // Wait until the gate is Idle, not merely "no dots in the DOM": a count-0
@@ -299,7 +317,7 @@ for (const { label, viewport, isMobile } of [
       expect(hidden!.t).toBeLessThanOrEqual(shown!.t + 1_500 + 500);
     });
 
-    test("connecting shows ten dots at the bottom centre", async ({
+    test("with no room open, ten dots sit in the no-room screen, not on the window", async ({
       page,
     }) => {
       await page.goto("/");
@@ -311,20 +329,102 @@ for (const { label, viewport, isMobile } of [
       await expect(indicator).toHaveAttribute("data-reason", "connecting");
       await expect(page.getByTestId(DOT_TESTID)).toHaveCount(10);
 
-      const vp = page.viewportSize();
-      expect(vp).toBeTruthy();
-      const box = await indicator.boundingBox();
+      // In the flow of the chat section, not fixed to the window.
+      const position = await indicator.evaluate(
+        (el) => getComputedStyle(el).position
+      );
+      expect(position).not.toBe("fixed");
+
+      // Centred in the same column as the Welcome copy.
+      const heading = page.getByRole("heading", { name: "Welcome to River" });
+      const [box, headingBox] = await Promise.all([
+        indicator.boundingBox(),
+        heading.boundingBox(),
+      ]);
       expect(box).toBeTruthy();
-
-      const bottomGap = vp!.height - (box!.y + box!.height);
-      expect(bottomGap).toBeLessThanOrEqual(14);
-
-      const centerX = box!.x + box!.width / 2;
-      expect(Math.abs(centerX - vp!.width / 2)).toBeLessThanOrEqual(2);
+      expect(headingBox).toBeTruthy();
+      const centre = box!.x + box!.width / 2;
+      const headingCentre = headingBox!.x + headingBox!.width / 2;
+      expect(Math.abs(centre - headingCentre)).toBeLessThanOrEqual(2);
+      // Below the Welcome copy, as part of it.
+      expect(box!.y).toBeGreaterThan(headingBox!.y + headingBox!.height);
 
       await expect(page.getByTestId(STATUS_TESTID)).toContainText(
         "Connecting"
       );
+    });
+
+    test("with a room open, the dots dock just above the composer", async ({
+      page,
+    }) => {
+      await page.goto("/");
+      await waitForApp(page);
+      await openRoomWithComposer(page, isMobile);
+      await setSyncStatus(page, "connecting");
+
+      const indicator = page.getByTestId(INDICATOR_TESTID);
+      await expect(indicator).toBeVisible();
+      await expect(indicator).toHaveCount(1);
+
+      const position = await indicator.evaluate(
+        (el) => getComputedStyle(el).position
+      );
+      expect(position).toBe("absolute");
+
+      const composer = page.getByTestId("message-composer");
+      const [box, composerBox] = await Promise.all([
+        indicator.boundingBox(),
+        composer.boundingBox(),
+      ]);
+      expect(box).toBeTruthy();
+      expect(composerBox).toBeTruthy();
+
+      // Above the composer's top edge, and close to it.
+      const gap = composerBox!.y - (box!.y + box!.height);
+      expect(gap).toBeGreaterThanOrEqual(0);
+      expect(gap).toBeLessThanOrEqual(12);
+
+      // Centred on the chat column the composer spans.
+      const centre = box!.x + box!.width / 2;
+      const composerCentre = composerBox!.x + composerBox!.width / 2;
+      expect(Math.abs(centre - composerCentre)).toBeLessThanOrEqual(2);
+    });
+
+    test("the history makes room for the docked dots, then gives it back", async ({
+      page,
+    }) => {
+      await page.goto("/");
+      await waitForApp(page);
+      await openRoomWithComposer(page, isMobile);
+
+      const spacer = page.getByTestId("chat-activity-spacer");
+      const spacerHeight = () =>
+        spacer.evaluate((el) => el.getBoundingClientRect().height);
+      expect(await spacerHeight()).toBe(0);
+
+      await setSyncStatus(page, "connecting");
+      const indicator = page.getByTestId(INDICATOR_TESTID);
+      await expect(indicator).toBeVisible();
+
+      // The spacer opens (it eases over 150ms) ...
+      await expect.poll(spacerHeight).toBeGreaterThanOrEqual(15);
+
+      // ... and the reader, pinned to the bottom when the room opened, stays
+      // pinned: the last message (which ends where the spacer starts) sits
+      // above the dots instead of under them.
+      await expect
+        .poll(async () => {
+          const [lastMessageBottom, dotsTop] = await Promise.all([
+            spacer.evaluate((el) => el.getBoundingClientRect().top),
+            indicator.evaluate((el) => el.getBoundingClientRect().top),
+          ]);
+          return dotsTop - lastMessageBottom;
+        })
+        .toBeGreaterThanOrEqual(8);
+
+      await setSyncStatus(page, "disconnected");
+      await expect(indicator).toHaveCount(0, { timeout: 3_000 });
+      await expect.poll(spacerHeight).toBe(0);
     });
 
     test("dots are phase-shifted on one wave", async ({ page }) => {
@@ -374,13 +474,7 @@ for (const { label, viewport, isMobile } of [
       );
       expect(pointerEvents).toBe("none");
 
-      if (isMobile) {
-        await page.getByTestId("hamburger-rooms-button").click();
-      }
-      // Self owns this example room, so it has a composer. Not simply the
-      // first room item: in some rooms self is not a member, and the composer
-      // is replaced by the "you're not a member" notice.
-      await selectListedRoom(page, "Your Private Room");
+      await openRoomWithComposer(page, isMobile);
 
       const messageInput = page.getByTestId("message-input");
       await expect(messageInput).toBeVisible({ timeout: 5_000 });
@@ -402,31 +496,24 @@ for (const { label, viewport, isMobile } of [
       await expect(page.getByText(marker)).toBeVisible({ timeout: 5_000 });
     });
 
-    test("mobile rooms panel: no overlap with the connection pill", async ({
+    test("mobile: the dots belong to the chat, so the rooms panel does not show them", async ({
       page,
     }) => {
-      test.skip(!isMobile, "mobile only");
+      test.skip(!isMobile, "mobile only: desktop shows every panel at once");
 
       await page.goto("/");
       await waitForApp(page);
+      await openRoomWithComposer(page, isMobile);
       await setSyncStatus(page, "connecting");
 
       const indicator = page.getByTestId(INDICATOR_TESTID);
       await expect(indicator).toBeVisible();
 
+      // Switch to the rooms panel: the chat section is hidden below 768px,
+      // and the dots go with it rather than floating over the room list.
       await page.getByTestId("hamburger-rooms-button").click();
-      const pill = page.locator(
-        '[data-testid="connection-status-indicator"]:visible'
-      );
-      await expect(pill).toHaveCount(1);
-
-      const indicatorBox = await indicator.boundingBox();
-      const pillBox = await pill.boundingBox();
-      expect(indicatorBox).toBeTruthy();
-      expect(pillBox).toBeTruthy();
-      expect(boxesIntersect(indicatorBox as Rect, pillBox as Rect)).toBe(
-        false
-      );
+      await expect(page.getByTestId("room-list")).toBeVisible();
+      await expect(indicator).toBeHidden();
     });
 
     test("reduced motion swaps the wave for a shimmer", async ({ page }) => {

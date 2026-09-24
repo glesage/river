@@ -32,6 +32,7 @@ use self::emoji_picker::FREQUENT_EMOJIS;
 use self::inline_icons::{DeleteIcon, EditIcon, ReplyIcon, SmileyIcon};
 use self::not_member_notification::NotMemberNotification;
 use crate::components::conversation::message_input::MessageInput;
+use crate::components::network_activity_indicator;
 use chrono::{DateTime, Utc};
 use dioxus::logger::tracing::*;
 use dioxus::prelude::*;
@@ -2246,6 +2247,11 @@ fn NoRoomFooter() -> Element {
                 "Click here to get an invitation to channel \"Freenet Official\""
             }
         }
+        // Network activity dots, in the flow. The slot keeps its height when
+        // they are hidden, so nothing below jumps when they appear.
+        div { class: "mt-6 h-2.5 flex items-center justify-center",
+            network_activity_indicator::NetworkActivityDots { docked: false }
+        }
         div { class: "mt-8 md:hidden",
             crate::components::members::ConnectionStatusIndicator {}
         }
@@ -3847,6 +3853,11 @@ pub fn Conversation() -> Element {
         }
     };
 
+    // While the network activity dots are docked above the composer, the
+    // history makes room for them so they never cover the last message.
+    let activity_room =
+        current_room_data.is_some() && network_activity_indicator::visible_activity().is_some();
+
     rsx! {
         div { class: "flex-1 flex flex-col min-w-0 bg-bg",
             // Room header
@@ -4444,6 +4455,18 @@ pub fn Conversation() -> Element {
                             None
                         }
                     }
+                    // Room for the docked network activity dots. A spacer, not
+                    // padding: it grows `#chat-content`'s content box, which is
+                    // what the ResizeObserver above watches, so a reader pinned
+                    // to the bottom stays pinned as it opens and closes. Padding
+                    // sits outside the content box and never fires it. Always
+                    // rendered, at 0px when idle, so the height can ease.
+                    div {
+                        class: "river-flow-spacer",
+                        "data-active": if activity_room { "true" } else { "false" },
+                        "data-testid": "chat-activity-spacer",
+                        "aria-hidden": "true",
+                    }
                 }
                     // Invisible sentinel near the bottom of the scroll container.
                     // An IntersectionObserver watches this element instead of using
@@ -4493,6 +4516,12 @@ pub fn Conversation() -> Element {
                         },
                         Icon { icon: FaChevronDown, width: 18, height: 18 }
                     }
+                }
+                // Docked at the bottom of the history, directly above the
+                // composer (or whichever notice replaces it). Outside the
+                // scroll container, so it stays put while the history scrolls.
+                if current_room_data.is_some() {
+                    network_activity_indicator::NetworkActivityDots { docked: true }
                 }
             }
 

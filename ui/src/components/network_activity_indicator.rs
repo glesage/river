@@ -1,11 +1,19 @@
-//! Global "River is loading" indicator: ten accent-blue dots riding one
-//! travelling sine wave, fixed at the bottom-centre of the page.
+//! "River is loading" indicator: ten accent-blue dots riding one travelling
+//! sine wave, shown inside the chat section. With a room open they dock at the
+//! bottom of the message history, just above the composer, and the history
+//! gains bottom padding so they never cover the last message; with no room
+//! open they sit in the no-room screen. Never `position: fixed`: they belong
+//! to the chat, not to the window.
 //!
 //! Two pure pieces decide what it shows, so both are unit-testable natively:
 //!
 //! - [`loading_reason`] says whether River is busy **right now**, and why.
 //! - [`DisplayGate`] decides whether the dots are **on screen**: a 200 ms
 //!   debounce before they appear and a 1.5 s minimum once they have.
+//!
+//! [`NetworkActivityIndicator`], mounted once in `App`, owns the gate and the
+//! screen-reader live region. The places that draw the dots read the gate
+//! through [`visible_activity`].
 //!
 //! See docs/plans/2026-09-24-network-activity-indicator.md.
 
@@ -18,9 +26,26 @@ use dioxus::prelude::*;
 
 const DOT_COUNT: usize = 10;
 
-/// Global "River is loading" indicator: ten accent-blue dots flowing like
-/// water at the bottom of the page. Mounted once in `App` and never unmounted.
-/// See docs/plans/2026-09-24-network-activity-indicator.md.
+/// Whether the dots are on screen, and why. Written only by
+/// [`NetworkActivityIndicator`]'s effect (synchronously, a single `set`) and by
+/// its timers (inside `crate::util::defer`).
+static ACTIVITY_GATE: GlobalSignal<DisplayGate> = Global::new(DisplayGate::default);
+
+/// The debounced, held reason to draw the dots for, or `None`. Subscribes the
+/// calling component, so it re-renders when the dots come and go.
+///
+/// `read()`, not `try_read()`: every write to the gate is a single `set` in a
+/// clean context, so no borrow outlives a statement and a render cannot meet
+/// one. A failed `try_read()` in a render, on the other hand, drops the
+/// subscription with no nudge to restore it, leaving the dots stuck.
+pub(crate) fn visible_activity() -> Option<LoadingReason> {
+    ACTIVITY_GATE.read().visible_reason()
+}
+
+/// Owns the loading decision and the show/hide timing, and renders the
+/// screen-reader live region. Mounted once in `App` and never unmounted. The
+/// dots themselves are drawn by [`NetworkActivityDots`] inside the chat
+/// section.
 #[component]
 pub fn NetworkActivityIndicator() -> Element {
     // Reads signals only, never a captured value: this component is always
@@ -83,7 +108,6 @@ pub fn NetworkActivityIndicator() -> Element {
     });
 
     // Debounce + minimum-visible timing, driven from the memo.
-    let gate = use_signal(DisplayGate::default);
     use_effect(move || {
         crate::util::signal_guard::anchor();
         let Ok(r) = reason.try_read().map(|r| *r) else {
@@ -93,22 +117,19 @@ pub fn NetworkActivityIndicator() -> Element {
         // peek(): this effect must not subscribe to the signal it writes, or it
         // re-runs itself. Written synchronously for the same reason: the
         // "never defer in use_effect" rule is about signals the effect reads.
-        let current = *gate.peek();
+        let current = *ACTIVITY_GATE.peek();
         let (next, wake) = current.on_reason(r, now_ms());
         if next != current {
-            let mut gate = gate;
-            gate.set(next);
+            *ACTIVITY_GATE.write() = next;
         }
         if let Some(delay_ms) = wake {
-            schedule_gate_tick(gate, delay_ms);
+            schedule_gate_tick(delay_ms);
         }
     });
 
-    // The GATED reason, not the raw memo: the dots and the screen-reader label
-    // both obey the 200 ms debounce and the 1.5 s minimum. Only this component
-    // and its own timers write `gate`, never while a render is running.
-    let visible = gate.read().visible_reason();
-    let label = visible.map(LoadingReason::label).unwrap_or("");
+    // The GATED reason, not the raw memo: the label obeys the same 200 ms
+    // debounce and 1.5 s minimum as the dots.
+    let label = visible_activity().map(LoadingReason::label).unwrap_or("");
 
     rsx! {
         // Always mounted: a live region only announces changes to content that
@@ -120,19 +141,36 @@ pub fn NetworkActivityIndicator() -> Element {
             "data-testid": "network-activity-status",
             "{label}"
         }
-        if let Some(reason) = visible {
-            div {
-                class: "river-flow",
-                "aria-hidden": "true",
-                "data-testid": "network-activity-indicator",
-                "data-reason": reason.as_attr(),
-                for i in 0..DOT_COUNT {
-                    span {
-                        key: "{i}",
-                        class: "river-flow-dot",
-                        "data-testid": "network-activity-dot",
-                        style: "--i: {i}",
-                    }
+    }
+}
+
+/// The dots, drawn only while [`visible_activity`] says so. `docked` pins them
+/// to the bottom-centre of the nearest positioned ancestor (the message
+/// history, directly above the composer); otherwise they sit in the flow.
+/// Render at most one at a time: tests and assistive tech address them by
+/// `data-testid`.
+#[component]
+pub fn NetworkActivityDots(docked: bool) -> Element {
+    let Some(reason) = visible_activity() else {
+        return rsx! {};
+    };
+    let placement = if docked {
+        "river-flow river-flow--docked"
+    } else {
+        "river-flow"
+    };
+    rsx! {
+        div {
+            class: placement,
+            "aria-hidden": "true",
+            "data-testid": "network-activity-indicator",
+            "data-reason": reason.as_attr(),
+            for i in 0..DOT_COUNT {
+                span {
+                    key: "{i}",
+                    class: "river-flow-dot",
+                    "data-testid": "network-activity-dot",
+                    style: "--i: {i}",
                 }
             }
         }
@@ -141,28 +179,23 @@ pub fn NetworkActivityIndicator() -> Element {
 
 /// Re-evaluate the gate after `delay_ms`. No cancellation is needed: `on_tick`
 /// is idempotent, so a stale timer is a no-op.
-///
-/// Writing `gate` from here is safe because the component is mounted once in
-/// `App` and never unmounted. If it ever moves somewhere that can unmount,
-/// check the signal is still alive first.
-fn schedule_gate_tick(gate: Signal<DisplayGate>, delay_ms: f64) {
+fn schedule_gate_tick(delay_ms: f64) {
     crate::util::safe_spawn_local(async move {
         crate::util::sleep(std::time::Duration::from_millis(
             delay_ms.max(0.0).ceil() as u64
         ))
         .await;
         crate::util::defer(move || {
-            let current = *gate.peek();
+            let current = *ACTIVITY_GATE.peek();
             let now = now_ms();
             let next = current.on_tick(now);
             if next != current {
-                let mut gate = gate;
-                gate.set(next);
+                *ACTIVITY_GATE.write() = next;
             } else if let Some(deadline) = next.pending_deadline() {
                 // Fired early against `Date.now()`. If this was the only timer
                 // armed, doing nothing would strand the gate, so try again.
                 if deadline > now {
-                    schedule_gate_tick(gate, deadline - now);
+                    schedule_gate_tick(deadline - now);
                 }
             }
         });

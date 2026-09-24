@@ -236,21 +236,44 @@
  * dots riding one travelling sine wave. Pure CSS: every dot runs the same
  * keyframes, phase-shifted by its --i. WHEN it is mounted (200ms debounce,
  * 1.5s minimum) is decided in Rust by `DisplayGate`, not here. Keep the
- * 1.5s wave period equal to `MIN_VISIBLE_MS`. */
+ * 1.5s wave period equal to `MIN_VISIBLE_MS`.
+ *
+ * It lives inside the chat section, never `position: fixed` to the window:
+ * `--docked` pins it to the bottom of the message history, just above the
+ * composer; without it the dots sit in the flow of the no-room screen. */
 .river-flow {
-    position: fixed;
-    left: 50%;
-    bottom: max(2px, env(safe-area-inset-bottom));
-    transform: translateX(-50%);
-    z-index: 60;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
     height: 10px;
     pointer-events: none;
     /* No delay here: the 200ms debounce already happened before mount. This
      * only softens the pop-in. */
     animation: river-flow-in 150ms ease-out;
+}
+
+/* 6px above the composer's top border, so 6-16px up. The history's spacer
+ * (below) opens while they show, so they sit in clear space. Below the
+ * scroll-to-latest button (z-30) and every backdrop and modal. */
+.river-flow--docked {
+    position: absolute;
+    left: 50%;
+    bottom: 6px;
+    transform: translateX(-50%);
+    z-index: 20;
+}
+
+/* Room at the end of the history for the docked dots (conversation.rs). With
+ * `#chat-content`'s 16px bottom padding, the last message ends 32px above the
+ * composer while the dots show, clear of their 16px. Eases with their fade. */
+.river-flow-spacer {
+    height: 0;
+    transition: height 150ms ease-out;
+}
+
+.river-flow-spacer[data-active="true"] {
+    height: 16px;
 }
 
 .river-flow-dot {
