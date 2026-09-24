@@ -159,6 +159,10 @@ mod tests {
             "dm_thread_modal.rs view",
             include_str!("../components/direct_messages/dm_thread_modal.rs"),
         ),
+        (
+            "network_activity_indicator.rs reason",
+            include_str!("../components/network_activity_indicator.rs"),
+        ),
     ];
 
     /// Same requirement as [`GUARDED_MEMO_SITES`], for `use_effect(...)`
@@ -176,6 +180,10 @@ mod tests {
         (
             "dm_thread_modal.rs DM_DRAFT merge",
             include_str!("../components/direct_messages/dm_thread_modal.rs"),
+        ),
+        (
+            "network_activity_indicator.rs gate",
+            include_str!("../components/network_activity_indicator.rs"),
         ),
     ];
 
@@ -314,14 +322,14 @@ mod tests {
                  fallibly. Remove the entry rather than leaving a vacuous pin."
             );
         }
-        // EXACT count, not a floor. There are 12 fallible memos across the 8
+        // EXACT count, not a floor. There are 13 fallible memos across the 9
         // files (conversation.rs alone has 4, member_info_modal.rs 2). A floor of
         // 8 left exactly the slack this assertion exists to remove: the matcher
         // could stop finding all four conversation.rs bodies -- the file that
         // caused #555 -- and still pass.
         assert_eq!(
-            checked, 12,
-            "expected to check exactly the 12 known fallible memos, checked \
+            checked, 13,
+            "expected to check exactly the 13 known fallible memos, checked \
              {checked}. If you added or removed a fallible memo, update this \
              number deliberately; if you did not, the matcher has stopped \
              finding memo bodies and this pin has gone vacuous."
@@ -389,10 +397,10 @@ mod tests {
         // some of app.rs's five fallible effects. Seven fallible use_effect
         // reads across the three files (app.rs has five, members.rs and
         // dm_thread_modal.rs one each) is the full set freenet/river#559
-        // identified.
+        // identified; the eighth is network_activity_indicator.rs's gate.
         assert_eq!(
-            checked, 7,
-            "expected to check exactly the 7 known fallible effects, checked \
+            checked, 8,
+            "expected to check exactly the 8 known fallible effects, checked \
              {checked}. If you added or removed a fallible effect, update this \
              number deliberately; if you did not, the matcher has stopped \
              finding effect bodies and this pin has gone vacuous."

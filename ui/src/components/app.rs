@@ -13,6 +13,7 @@ use crate::components::app::freenet_api::FreenetSynchronizer;
 use crate::components::direct_messages::{DmThreadModal, InviteViaDmPickerModal};
 use crate::components::members::member_info_modal::MemberInfoModal;
 use crate::components::members::Invitation;
+use crate::components::network_activity_indicator::NetworkActivityIndicator;
 use crate::components::room_list::create_room_modal::CreateRoomModal;
 use crate::components::room_list::edit_room_modal::EditRoomModal;
 use crate::components::room_list::notification_modal::NotificationModal;
@@ -590,6 +591,7 @@ pub fn App() -> Element {
         CreateRoomModal {}
         DmThreadModal {}
         InviteViaDmPickerModal {}
+        NetworkActivityIndicator {}
         ReceiveInvitationModal {
             invitation: receive_invitation
         }

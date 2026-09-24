@@ -9,8 +9,157 @@
 //!
 //! See docs/plans/2026-09-24-network-activity-indicator.md.
 
-use crate::components::app::chat_delegate::RoomsLoadState;
+use crate::components::app::chat_delegate::{RoomsLoadState, ROOMS_LOAD_STATE};
 use crate::components::app::freenet_api::freenet_synchronizer::SynchronizerStatus;
+use crate::components::app::sync_info::{now_ms, SYNC_INFO};
+use crate::components::app::{PENDING_INVITES, ROOMS, SYNC_STATUS};
+use dioxus::prelude::*;
+
+const DOT_COUNT: usize = 10;
+
+/// Global "River is loading" indicator: ten accent-blue dots flowing like
+/// water at the bottom of the page. Mounted once in `App` and never unmounted.
+/// See docs/plans/2026-09-24-network-activity-indicator.md.
+#[component]
+pub fn NetworkActivityIndicator() -> Element {
+    // Reads signals only, never a captured value: this component is always
+    // mounted, so a memo over plain input would go stale for the session
+    // (freenet/river#291).
+    //
+    // On a contended read each input falls back to its IDLE value. The
+    // indicator is decorative: a blank lasting one macrotask (which the nudge
+    // corrects) is better than a false "busy" that lingers.
+    let reason = use_memo(move || {
+        crate::util::signal_guard::anchor();
+        let Ok(status) = SYNC_STATUS.try_read() else {
+            crate::util::signal_guard::schedule_nudge();
+            return None;
+        };
+        let status = status.clone();
+        let rooms_load_state = match ROOMS_LOAD_STATE.try_read() {
+            Ok(state) => *state,
+            Err(_) => {
+                crate::util::signal_guard::schedule_nudge();
+                RoomsLoadState::Loaded
+            }
+        };
+        let joining = match PENDING_INVITES.try_read() {
+            Ok(invites) => invites.map.values().any(|j| j.status.is_in_progress()),
+            Err(_) => {
+                crate::util::signal_guard::schedule_nudge();
+                false
+            }
+        };
+        // Both guards live only inside this block, so none is still held if a
+        // later edit adds a write below.
+        let rooms_syncing = 'syncing: {
+            let Ok(rooms) = ROOMS.try_read() else {
+                crate::util::signal_guard::schedule_nudge();
+                break 'syncing 0;
+            };
+            let Ok(sync_info) = SYNC_INFO.try_read() else {
+                crate::util::signal_guard::schedule_nudge();
+                break 'syncing 0;
+            };
+            sync_info.rooms_syncing_count(|k| rooms.map.contains_key(k))
+        };
+        loading_reason(&ActivityInputs {
+            sync_status: &status,
+            sync_enabled: !cfg!(feature = "no-sync"),
+            rooms_load_state,
+            joining,
+            rooms_syncing,
+            fetches_in_flight: 0,
+            sends_in_flight: 0,
+        })
+    });
+
+    // Debounce + minimum-visible timing, driven from the memo.
+    let gate = use_signal(DisplayGate::default);
+    use_effect(move || {
+        crate::util::signal_guard::anchor();
+        let Ok(r) = reason.try_read().map(|r| *r) else {
+            crate::util::signal_guard::schedule_nudge();
+            return;
+        };
+        // peek(): this effect must not subscribe to the signal it writes, or it
+        // re-runs itself. Written synchronously for the same reason: the
+        // "never defer in use_effect" rule is about signals the effect reads.
+        let current = *gate.peek();
+        let (next, wake) = current.on_reason(r, now_ms());
+        if next != current {
+            let mut gate = gate;
+            gate.set(next);
+        }
+        if let Some(delay_ms) = wake {
+            schedule_gate_tick(gate, delay_ms);
+        }
+    });
+
+    // The GATED reason, not the raw memo: the dots and the screen-reader label
+    // both obey the 200 ms debounce and the 1.5 s minimum. Only this component
+    // and its own timers write `gate`, never while a render is running.
+    let visible = gate.read().visible_reason();
+    let label = visible.map(LoadingReason::label).unwrap_or("");
+
+    rsx! {
+        // Always mounted: a live region only announces changes to content that
+        // was already in the DOM, so it must not come and go with the dots.
+        span {
+            class: "sr-only",
+            role: "status",
+            "aria-live": "polite",
+            "data-testid": "network-activity-status",
+            "{label}"
+        }
+        if let Some(reason) = visible {
+            div {
+                class: "river-flow",
+                "aria-hidden": "true",
+                "data-testid": "network-activity-indicator",
+                "data-reason": reason.as_attr(),
+                for i in 0..DOT_COUNT {
+                    span {
+                        key: "{i}",
+                        class: "river-flow-dot",
+                        "data-testid": "network-activity-dot",
+                        style: "--i: {i}",
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Re-evaluate the gate after `delay_ms`. No cancellation is needed: `on_tick`
+/// is idempotent, so a stale timer is a no-op.
+///
+/// Writing `gate` from here is safe because the component is mounted once in
+/// `App` and never unmounted. If it ever moves somewhere that can unmount,
+/// check the signal is still alive first.
+fn schedule_gate_tick(gate: Signal<DisplayGate>, delay_ms: f64) {
+    crate::util::safe_spawn_local(async move {
+        crate::util::sleep(std::time::Duration::from_millis(
+            delay_ms.max(0.0).ceil() as u64
+        ))
+        .await;
+        crate::util::defer(move || {
+            let current = *gate.peek();
+            let now = now_ms();
+            let next = current.on_tick(now);
+            if next != current {
+                let mut gate = gate;
+                gate.set(next);
+            } else if let Some(deadline) = next.pending_deadline() {
+                // Fired early against `Date.now()`. If this was the only timer
+                // armed, doing nothing would strand the gate, so try again.
+                if deadline > now {
+                    schedule_gate_tick(gate, deadline - now);
+                }
+            }
+        });
+    });
+}
 
 /// Why the indicator is showing. Variants are in priority order: when several
 /// apply, [`loading_reason`] picks the first.
