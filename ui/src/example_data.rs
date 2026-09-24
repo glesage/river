@@ -1478,6 +1478,34 @@ pub fn install_test_hooks() {
     );
     set_load_state.forget();
 
+    // Drive `SYNC_STATUS` for the network activity indicator. A `no-sync`
+    // build never starts the synchronizer, so the status sits at
+    // `Disconnected` for good and every visible state of the indicator is
+    // otherwise unreachable from a browser. Only the connection pill and the
+    // indicator read `SYNC_STATUS`, so nothing tries to talk to a node.
+    let set_sync_status = Closure::wrap(Box::new(move |state: String| {
+        use crate::components::app::freenet_api::freenet_synchronizer::SynchronizerStatus;
+        let parsed = match state.as_str() {
+            "connecting" => SynchronizerStatus::Connecting,
+            "connected" => SynchronizerStatus::Connected,
+            "disconnected" => SynchronizerStatus::Disconnected,
+            "error" => SynchronizerStatus::Error("test".into()),
+            other => {
+                crate::util::debug_log(&format!("[test] unknown sync status {other:?}"));
+                return;
+            }
+        };
+        crate::util::defer(move || {
+            *crate::components::app::SYNC_STATUS.write() = parsed;
+        });
+    }) as Box<dyn FnMut(String)>);
+    let _ = js_sys::Reflect::set(
+        &hooks,
+        &JsValue::from_str("setSyncStatus"),
+        set_sync_status.as_ref(),
+    );
+    set_sync_status.forget();
+
     let _ = js_sys::Reflect::set(&window, &JsValue::from_str("__riverTest"), &hooks);
 }
 
