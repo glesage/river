@@ -106,11 +106,15 @@ pub fn InviteMemberModal(is_active: Signal<bool>) -> Element {
                 ciborium::ser::into_writer(&member, &mut member_bytes)
                     .map_err(|e| format!("Failed to serialize member: {}", e))?;
 
-                // Sign using delegate with fallback to local signing
-                let signature = crate::signing::sign_member_with_fallback(
-                    room_data.room_key(),
-                    member_bytes,
-                    &self_sk,
+                // Sign using delegate with fallback to local signing. The user
+                // waits on the node for this signature.
+                let signature = crate::components::app::node_activity::track(
+                    crate::components::app::node_activity::ActionKind::Saving,
+                    crate::signing::sign_member_with_fallback(
+                        room_data.room_key(),
+                        member_bytes,
+                        &self_sk,
+                    ),
                 )
                 .await;
 

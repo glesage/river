@@ -63,7 +63,12 @@ fn set_mode(room_vk: VerifyingKey, mode: NotificationMode) {
             rooms.notification_modes.insert(room_vk, mode);
         });
         spawn(async move {
-            if let Err(e) = save_rooms_to_delegate().await {
+            let saved = crate::components::app::node_activity::track(
+                crate::components::app::node_activity::ActionKind::Saving,
+                save_rooms_to_delegate(),
+            )
+            .await;
+            if let Err(e) = saved {
                 error!("Failed to save notification mode: {}", e);
             }
         });

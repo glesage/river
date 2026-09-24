@@ -72,7 +72,16 @@ pub fn CreateRoomModal() -> Element {
                 // key and refuses to subscribe if it isn't on file
                 // (#228 PR 2 v2 Fix 5). Sending them out of order would
                 // produce a spurious "no signing key on file" error.
-                if let Err(e) = store_signing_key(room_key_bytes, &sk_clone).await {
+                // The user waits on the node only for this node-local step.
+                // The room's PUT (sent by the sync) and the delegate's
+                // subscription both travel through Freenet, so they are
+                // background work for the pill, not the primary dots.
+                let stored = crate::components::app::node_activity::track(
+                    crate::components::app::node_activity::ActionKind::CreatingRoom,
+                    store_signing_key(room_key_bytes, &sk_clone),
+                )
+                .await;
+                if let Err(e) = stored {
                     error!("Failed to store signing key in delegate: {}", e);
                     return;
                 }

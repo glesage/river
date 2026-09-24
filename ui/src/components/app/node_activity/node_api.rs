@@ -15,6 +15,8 @@ pub struct NodeApi {
 }
 
 impl NodeApi {
+    /// Only `connection_manager.rs` (wasm-only) opens connections.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub fn new(inner: WebApi) -> Self {
         Self { inner }
     }

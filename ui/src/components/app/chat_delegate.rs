@@ -3635,11 +3635,18 @@ mod tests {
              timestamp. `should_unhide_for_inbound_dm(None, ts)` would satisfy \
              a looser pin while making the wrapper a permanent no-op."
         );
+        // The inbound path calls the background flavour, which does the same
+        // unhide but counts its save as background work rather than a user
+        // action (docs/plans/loading-indicators.md).
         assert!(
-            seg.contains(&format!("{}{}", "unhide_dm_thread", "(room_owner_vk,peer)")),
-            "the guarded branch must still CALL unhide_dm_thread - this is the \
-             only reachable revival from either sync path, so deleting it kills \
-             #267 revival entirely while the gate assertions above still pass."
+            seg.contains(&format!(
+                "{}{}",
+                "unhide_dm_thread_in_background", "(room_owner_vk,peer)"
+            )),
+            "the guarded branch must still CALL unhide_dm_thread_in_background - \
+             this is the only reachable revival from either sync path, so \
+             deleting it kills #267 revival entirely while the gate assertions \
+             above still pass."
         );
     }
 
@@ -7180,8 +7187,15 @@ pub fn hide_dm_thread(
             }
         });
         if changed {
+            // An explicit user action (archiving from the rail), so the save
+            // is one the user waits on.
             crate::util::safe_spawn_local(async {
-                if let Err(e) = save_outbound_dms_to_delegate().await {
+                let saved = crate::components::app::node_activity::track(
+                    crate::components::app::node_activity::ActionKind::Saving,
+                    save_outbound_dms_to_delegate(),
+                )
+                .await;
+                if let Err(e) = saved {
                     warn!("Failed to persist hide-DM-thread update: {}", e);
                 }
             });
@@ -7197,6 +7211,23 @@ pub fn hide_dm_thread(
 /// exists for the pair. Also the API a future "Hidden conversations"
 /// admin path would use.
 pub fn unhide_dm_thread(room_owner_vk: ed25519_dalek::VerifyingKey, peer: MemberId) {
+    // Every caller is an explicit user action (Undo, Un-archive, sending a
+    // DM), so the save is one the user waits on. The inbound-sync path goes
+    // through `unhide_dm_thread_in_background` instead.
+    unhide_dm_thread_saving(room_owner_vk, peer, true);
+}
+
+/// [`unhide_dm_thread`] for the inbound-sync path: the same unhide, with its
+/// save counted as background work rather than a user action.
+fn unhide_dm_thread_in_background(room_owner_vk: ed25519_dalek::VerifyingKey, peer: MemberId) {
+    unhide_dm_thread_saving(room_owner_vk, peer, false);
+}
+
+fn unhide_dm_thread_saving(
+    room_owner_vk: ed25519_dalek::VerifyingKey,
+    peer: MemberId,
+    by_user: bool,
+) {
     use crate::components::direct_messages::HIDDEN_DM_THREADS;
 
     // Record the tombstone BEFORE deferring the signal mutation, so a
@@ -7221,8 +7252,17 @@ pub fn unhide_dm_thread(room_owner_vk: ed25519_dalek::VerifyingKey, peer: Member
         // entry still sitting in the delegate from a prior session
         // would resurrect on the next reload — the in-memory
         // tombstone is session-only by design.
-        crate::util::safe_spawn_local(async {
-            if let Err(e) = save_outbound_dms_to_delegate().await {
+        crate::util::safe_spawn_local(async move {
+            let saved = if by_user {
+                crate::components::app::node_activity::track(
+                    crate::components::app::node_activity::ActionKind::Saving,
+                    save_outbound_dms_to_delegate(),
+                )
+                .await
+            } else {
+                save_outbound_dms_to_delegate().await
+            };
+            if let Err(e) = saved {
                 warn!("Failed to persist unhide-DM-thread update: {}", e);
             }
         });
@@ -7406,7 +7446,7 @@ pub fn unhide_dm_thread_if_dm_is_newer(
     drop(hidden);
 
     if should_unhide_for_inbound_dm(cutoff, dm_timestamp, unix_now_secs()) {
-        unhide_dm_thread(room_owner_vk, peer);
+        unhide_dm_thread_in_background(room_owner_vk, peer);
     }
 }
 

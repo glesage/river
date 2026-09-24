@@ -2340,7 +2340,12 @@ fn complete_identity_import(
             // AUTHORITATIVE: the user just imported/chose this identity, so it
             // becomes the room's current identity and supersedes any stale
             // hydration migration for an old key (freenet/river#414 P1).
-            let result = crate::signing::migrate_signing_key(room_key_bytes, &new_sk, true).await;
+            // The user waits on the node while it takes the imported key.
+            let result = crate::components::app::node_activity::track(
+                crate::components::app::node_activity::ActionKind::Saving,
+                crate::signing::migrate_signing_key(room_key_bytes, &new_sk, true),
+            )
+            .await;
             match result {
                 crate::signing::MigrationResult::Stored
                 | crate::signing::MigrationResult::StaleKeyOverwritten

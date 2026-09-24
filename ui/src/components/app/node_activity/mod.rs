@@ -29,7 +29,6 @@ use dioxus::logger::tracing::warn;
 use dioxus::prelude::*;
 use ed25519_dalek::VerifyingKey;
 use freenet_stdlib::client_api::{ClientError, HostResponse};
-use freenet_stdlib::prelude::ContractInstanceId;
 use ledger::{Ledger, Settle, SlotId};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
@@ -131,7 +130,9 @@ pub(crate) fn record_request(kind: RequestKind) {
 }
 
 /// A reply or error arrived from the node. Called from the WebApi result
-/// closure in `connection_manager.rs`, before anything else looks at it.
+/// closure in `connection_manager.rs` (wasm-only), before anything else looks
+/// at it.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub fn on_reply(result: &Result<HostResponse, ClientError>) {
     let Some(settle) = ledger::settle_for(result) else {
         return;
@@ -217,6 +218,7 @@ fn arm_sweep(horizon_ms: f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use freenet_stdlib::prelude::ContractInstanceId;
 
     fn c(n: u8) -> ContractInstanceId {
         ContractInstanceId::new([n; 32])
@@ -398,6 +400,101 @@ mod tests {
             "expected exactly the 16 known user room changes; update this \
              deliberately if you added or removed one"
         );
+    }
+
+    /// Creating a room keeps the primary dots only for the node-local step
+    /// (storing the room's signing key). `EnsureRoomSubscription` can park on
+    /// the network and the room's PUT travels through Freenet, so neither may
+    /// sit inside the guard.
+    #[test]
+    fn creating_a_room_waits_only_on_the_node_local_step() {
+        let src = strip_line_comments(production_only(include_str!(
+            "../../room_list/create_room_modal.rs"
+        )));
+        let track = src
+            .find("node_activity::track(")
+            .expect("create_room must track its node-local step");
+        let store = src
+            .find("store_signing_key(room_key_bytes")
+            .expect("create_room no longer stores the signing key; move the pin");
+        let ensure = src
+            .find("ensure_room_subscription_once(")
+            .expect("create_room no longer ensures the subscription; move the pin");
+        assert!(track < store && store < ensure);
+        let tracked = &src[track..ensure];
+        assert!(tracked.contains("ActionKind::CreatingRoom"));
+        assert!(
+            tracked.contains(".await"),
+            "the tracked store must finish before EnsureRoomSubscription is sent"
+        );
+        assert_eq!(
+            src.matches("node_activity::").count(),
+            2,
+            "only the key store is a user wait here (one track, one ActionKind)"
+        );
+    }
+
+    /// Each explicit user action that awaits a node call holds a guard. A
+    /// dropped guard would leave that action with no primary indicator.
+    #[test]
+    fn scoped_user_actions_keep_their_guard() {
+        let files = [
+            (
+                "invite_member_modal.rs",
+                include_str!("../../members/invite_member_modal.rs"),
+                1,
+            ),
+            (
+                "invite_via_dm_picker_modal.rs",
+                include_str!("../../direct_messages/invite_via_dm_picker_modal.rs"),
+                1,
+            ),
+            (
+                "notification_modal.rs",
+                include_str!("../../room_list/notification_modal.rs"),
+                1,
+            ),
+            ("room_list.rs", include_str!("../../room_list.rs"), 4),
+            ("members.rs", include_str!("../../members.rs"), 1),
+            (
+                "edit_room_modal.rs",
+                include_str!("../../room_list/edit_room_modal.rs"),
+                4,
+            ),
+            (
+                "ban_button.rs",
+                include_str!("../../members/member_info_modal/ban_button.rs"),
+                1,
+            ),
+            (
+                "room_name_field.rs",
+                include_str!("../../room_list/room_name_field.rs"),
+                1,
+            ),
+        ];
+        for (name, src, expected) in files {
+            let src = strip_line_comments(production_only(src));
+            let guards = src.matches("node_activity::track(").count()
+                + src.matches("node_activity::busy(").count();
+            assert_eq!(
+                guards, expected,
+                "{name}: expected {expected} scoped user action(s); update this \
+                 deliberately if you added or removed one"
+            );
+        }
+
+        // chat_delegate.rs has a test module mid-file, so scope to the two
+        // helpers instead: archiving, and the user flavour of un-archiving
+        // (the inbound-sync flavour must stay background).
+        let src = strip_line_comments(include_str!("../chat_delegate.rs"));
+        assert!(fn_body(&src, "pub fn hide_dm_thread(").contains("node_activity::track("));
+        let unhide = fn_body(&src, "fn unhide_dm_thread_saving(");
+        assert!(unhide.contains("if by_user"));
+        assert!(unhide.contains("node_activity::track("));
+        assert!(fn_body(&src, "pub fn unhide_dm_thread(")
+            .contains("unhide_dm_thread_saving(room_owner_vk, peer, true)"));
+        assert!(fn_body(&src, "fn unhide_dm_thread_in_background(")
+            .contains("unhide_dm_thread_saving(room_owner_vk, peer, false)"));
     }
 
     /// The only way to talk to the node records the request.

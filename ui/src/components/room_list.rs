@@ -558,7 +558,12 @@ pub fn RoomList() -> Element {
                                         if src != room_key {
                                             ROOMS.with_mut(|rooms| rooms.move_room(src, room_key));
                                             spawn(async move {
-                                                if let Err(e) = save_rooms_to_delegate().await {
+                                                let saved = crate::components::app::node_activity::track(
+                                                    crate::components::app::node_activity::ActionKind::Saving,
+                                                    save_rooms_to_delegate(),
+                                                )
+                                                .await;
+                                                if let Err(e) = saved {
                                                     error!("Failed to save room order: {}", e);
                                                 }
                                             });
@@ -676,7 +681,12 @@ pub fn RoomList() -> Element {
                                             crate::util::defer(move || {
                                                 ROOMS.with_mut(|rooms| rooms.move_room_up(room_key));
                                                 spawn(async move {
-                                                    if let Err(e) = save_rooms_to_delegate().await {
+                                                    let saved = crate::components::app::node_activity::track(
+                                                        crate::components::app::node_activity::ActionKind::Saving,
+                                                        save_rooms_to_delegate(),
+                                                    )
+                                                    .await;
+                                                    if let Err(e) = saved {
                                                         error!("Failed to save room order: {}", e);
                                                     }
                                                 });
@@ -703,7 +713,12 @@ pub fn RoomList() -> Element {
                                             crate::util::defer(move || {
                                                 ROOMS.with_mut(|rooms| rooms.move_room_down(room_key));
                                                 spawn(async move {
-                                                    if let Err(e) = save_rooms_to_delegate().await {
+                                                    let saved = crate::components::app::node_activity::track(
+                                                        crate::components::app::node_activity::ActionKind::Saving,
+                                                        save_rooms_to_delegate(),
+                                                    )
+                                                    .await;
+                                                    if let Err(e) = saved {
                                                         error!("Failed to save room order: {}", e);
                                                     }
                                                 });
@@ -753,7 +768,12 @@ pub fn RoomList() -> Element {
                                 if let Some(src) = src {
                                     ROOMS.with_mut(|rooms| rooms.move_room_to_end(src));
                                     spawn(async move {
-                                        if let Err(e) = save_rooms_to_delegate().await {
+                                        let saved = crate::components::app::node_activity::track(
+                                            crate::components::app::node_activity::ActionKind::Saving,
+                                            save_rooms_to_delegate(),
+                                        )
+                                        .await;
+                                        if let Err(e) = saved {
                                             error!("Failed to save room order: {}", e);
                                         }
                                     });

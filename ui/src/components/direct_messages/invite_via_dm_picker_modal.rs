@@ -650,8 +650,13 @@ async fn drive_send(
     if ciborium::ser::into_writer(&member, &mut member_bytes).is_err() {
         return Err("Couldn't serialize membership claim. Try again.".into());
     }
-    let signature =
-        crate::signing::sign_member_with_fallback(room_key, member_bytes, &inviter_sk).await;
+    // The user waits on the node for this signature; the DM that carries the
+    // invitation then waits on its own UPDATE (`send_structured_dm`).
+    let signature = crate::components::app::node_activity::track(
+        crate::components::app::node_activity::ActionKind::Sending,
+        crate::signing::sign_member_with_fallback(room_key, member_bytes, &inviter_sk),
+    )
+    .await;
     let authorized = AuthorizedMember::with_signature(member, signature);
     // For a private room, embed the room secrets the inviter holds so the
     // invitee can decrypt the room immediately on join. Empty for a public
