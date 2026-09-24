@@ -6,7 +6,6 @@ use crate::components::app::document_title::{
     mark_current_room_as_read, update_document_title, DOCUMENT_VISIBLE,
 };
 use crate::components::app::freenet_api::constants::INVITATION_TIMEOUT_MS;
-use crate::components::app::network_activity::{self, ActivityKind};
 use crate::components::app::notifications::{
     mark_initial_sync_complete, notify_new_messages, INITIAL_SYNC_COMPLETE,
 };
@@ -1187,10 +1186,6 @@ impl RoomSynchronizer {
                             "Successfully sent update for room: {:?}",
                             MemberId::from(room_vk)
                         );
-                        // Network activity indicator (Phase 2): mark this
-                        // outbound UPDATE as in flight. `begin` defers its
-                        // signal write internally, so it takes no borrow here.
-                        network_activity::begin(ActivityKind::Send, *contract_key.id());
                         // Only update the last synced state after successfully sending the update
                         SYNC_INFO.with_mut(|sync_info| {
                             sync_info.state_updated(&room_vk, state.clone());
@@ -1646,9 +1641,6 @@ impl RoomSynchronizer {
                             "Sent refresh GET request for room {:?}",
                             MemberId::from(owner_vk)
                         );
-                        // Network activity indicator (Phase 2): mark this
-                        // wake/visibility refresh GET as in flight.
-                        network_activity::begin(ActivityKind::Fetch, *contract_key.id());
                     }
                     Err(e) => {
                         // Don't fail the entire refresh if one room fails
@@ -1691,9 +1683,6 @@ impl RoomSynchronizer {
             match web_api.send(client_request).await {
                 Ok(_) => {
                     info!("Sent GET request for contract: {}", contract_key.id());
-                    // Network activity indicator (Phase 2): mark the
-                    // post-subscribe GET as in flight.
-                    network_activity::begin(ActivityKind::Fetch, *contract_key.id());
                     Ok(())
                 }
                 Err(e) => {

@@ -1,47 +1,35 @@
 import { test, expect, Page } from "@playwright/test";
 import { selectListedRoom } from "./example-room";
 
-// Coverage for the network activity indicator
-// (docs/plans/2026-09-24-network-activity-indicator.md): ten accent-blue
-// dots that appear while River is connecting, reconnecting, joining a room,
-// loading/syncing rooms, or (Phase 2) has a GET/UPDATE in flight. It is
-// debounced 500ms — a load that finishes sooner shows nothing — and held on
-// screen for at least 1s once shown, so a short load still reads as a ripple
-// rather than a blip.
+// Coverage for the PRIMARY loading indicator (docs/plans/loading-indicators.md):
+// ten accent-blue dots shown only while the user is waiting on the node's
+// reply to something they did (sending, reacting, creating or joining a room,
+// saving a setting). Background work (connecting, loading or re-syncing rooms,
+// refreshes) never shows them: that belongs to the small dots in the
+// connection pill (connection-activity-dots.spec.ts). The dots are debounced
+// 500ms, so a quick reply shows nothing, and held at least 1s once shown.
 //
 // PLACEMENT: inside the chat section, never fixed to the window. With a room
 // open the dots dock at the bottom of the message history, just above the
 // composer, and the history gains bottom padding while they show so they never
 // cover the last message. With no room open they sit in the flow of the
-// no-room screen, which is where most tests below observe them.
+// no-room screen.
 //
-// PREMISES this spec relies on (see the plan's "Premises of the no-sync
-// example build" and `example_data.rs::install_test_hooks`):
-//   - `SYNC_STATUS` starts at `Disconnected`, and a `no-sync` build never
-//     writes it again on its own ("Disconnected" only means "reconnecting"
-//     in a sync build). So the indicator is idle at load, and
-//     `window.__riverTest.setSyncStatus(state)` (state: "connecting" |
-//     "connected" | "disconnected" | "error") is the only way to reach its
-//     busy states here.
-//   - `window.__riverTest.setRoomsLoadState(state)` (already used by
-//     rooms-loading-state.spec.ts) ALSO clears ROOMS and CURRENT_ROOM as a
-//     side effect. Tests below only call it where that side effect doesn't
-//     matter to what's being asserted.
-//   - `ROOMS_LOAD_STATE` sits at its `Loading` default forever in this
-//     build — nothing in the example fixture advances it — which is the
-//     premise the "connected with rooms still loading" test depends on.
-//   - Phase 2's `window.__riverTest.beginActivity(kind)` /
-//     `endActivity(kind)` (kind: "fetch" | "send") drive the in-flight
-//     tracker directly, independent of any real network traffic.
+// PREMISES (see `example_data.rs::install_test_hooks`):
+//   - A no-sync build starts `Disconnected` and never writes `SYNC_STATUS` on
+//     its own. The primary needs `Connected`, so every busy test first calls
+//     `setSyncStatus("connected")`.
+//   - `beginUserAction(kind?)` / `endUserAction()` hold a scoped user action
+//     (kind: "sending" (default) | "saving" | "creating-room").
+//   - `awaitRoomUpdate()`, `sendRoomUpdate()`, `answerRoomUpdate()`,
+//     `failRoomUpdate()` walk a room change through the real attach-on-send
+//     path: queued, carried by an UPDATE, then answered or failed.
+//   - `beginBackgroundRequest()` / `endBackgroundRequest()` record and settle
+//     a request nobody is waiting on.
 //
-// Two timing rules apply to every test below (plan Task 9):
-//   - Appearing takes ~500ms after the triggering hook call. The default
-//     `toBeVisible()` timeout (5s) already absorbs that, so no special
-//     handling is needed for "the dots should show up" assertions.
-//   - Disappearing can take up to 1s after the load ends (the minimum-
-//     visible hold). Every "gone" assertion therefore uses
-//     `toHaveCount(0, { timeout: 3_000 })` rather than the default —  a bare
-//     `toHaveCount(0)` would race the hold and flake.
+// Timing rules: appearing takes ~500ms (the default `toBeVisible()` timeout
+// absorbs it); disappearing can take up to 1s (the hold), so every "gone"
+// assertion uses `toHaveCount(0, { timeout: 3_000 })`.
 
 const INDICATOR_TESTID = "network-activity-indicator";
 const DOT_TESTID = "network-activity-dot";
@@ -58,22 +46,23 @@ async function setSyncStatus(page: Page, state: string) {
   }, state);
 }
 
-async function setLoadState(page: Page, state: string) {
-  await page.evaluate((s) => {
-    (window as any).__riverTest.setRoomsLoadState(s);
-  }, state);
+async function hook(page: Page, name: string, arg?: string) {
+  await page.evaluate(
+    ({ name, arg }) => {
+      (window as any).__riverTest[name](arg);
+    },
+    { name, arg }
+  );
 }
 
-async function beginActivity(page: Page, kind: "fetch" | "send") {
-  await page.evaluate((k) => {
-    (window as any).__riverTest.beginActivity(k);
-  }, kind);
+// Connected, then a scoped user action: the primary's busy state.
+async function startUserAction(page: Page, kind?: string) {
+  await setSyncStatus(page, "connected");
+  await hook(page, "beginUserAction", kind);
 }
 
-async function endActivity(page: Page, kind: "fetch" | "send") {
-  await page.evaluate((k) => {
-    (window as any).__riverTest.endActivity(k);
-  }, kind);
+async function endUserAction(page: Page) {
+  await hook(page, "endUserAction");
 }
 
 // Open a room that has a composer: self owns "Your Private Room" in the
@@ -184,11 +173,12 @@ for (const { label, viewport, isMobile } of [
       await waitForApp(page);
       const readLog = await recordPresence(page);
 
+      await setSyncStatus(page, "connected");
       // 300ms: past the old 200ms debounce, so this fails if it regresses.
       await page.evaluate(() => {
         const w = window as any;
-        w.__riverTest.setSyncStatus("connecting");
-        setTimeout(() => w.__riverTest.setSyncStatus("disconnected"), 300);
+        w.__riverTest.beginUserAction();
+        setTimeout(() => w.__riverTest.endUserAction(), 300);
       });
 
       await page.waitForTimeout(2_000);
@@ -202,12 +192,13 @@ for (const { label, viewport, isMobile } of [
     }) => {
       await page.goto("/");
       await waitForApp(page);
+      await setSyncStatus(page, "connected");
       const readLog = await recordPresence(page);
 
       await page.evaluate(() => {
         const w = window as any;
         w.__t0 = performance.now();
-        w.__riverTest.setSyncStatus("connecting");
+        w.__riverTest.beginUserAction();
       });
 
       await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
@@ -230,10 +221,10 @@ for (const { label, viewport, isMobile } of [
       await waitForApp(page);
       const readLog = await recordPresence(page);
 
-      await setSyncStatus(page, "connecting");
+      await startUserAction(page);
       await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
 
-      await setSyncStatus(page, "disconnected");
+      await endUserAction(page);
       await expect(page.getByTestId(INDICATOR_TESTID)).toHaveCount(0, {
         timeout: 3_000,
       });
@@ -256,7 +247,7 @@ for (const { label, viewport, isMobile } of [
       await waitForApp(page);
       const readLog = await recordPresence(page);
 
-      await setSyncStatus(page, "connecting");
+      await startUserAction(page);
       await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
       // Already visible for longer than the 1s minimum before we end it.
       await page.waitForTimeout(2_500);
@@ -264,7 +255,7 @@ for (const { label, viewport, isMobile } of [
       await page.evaluate(() => {
         const w = window as any;
         w.__t1 = performance.now();
-        w.__riverTest.setSyncStatus("disconnected");
+        w.__riverTest.endUserAction();
       });
 
       await expect(page.getByTestId(INDICATOR_TESTID)).toHaveCount(0, {
@@ -290,17 +281,17 @@ for (const { label, viewport, isMobile } of [
       await waitForApp(page);
       const readLog = await recordPresence(page);
 
-      await setSyncStatus(page, "connecting");
+      await startUserAction(page);
       await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
 
       // 800ms, not less: if the hold clock were reset by the second busy
       // spell, the dots would hide ~shown_t + 800 + 1000, comfortably past the
       // bound below. A shorter wait leaves that mutation within ~50ms of it.
-      await setSyncStatus(page, "disconnected");
+      await endUserAction(page);
       await page.waitForTimeout(800);
-      await setSyncStatus(page, "connecting");
+      await hook(page, "beginUserAction");
       await page.waitForTimeout(200);
-      await setSyncStatus(page, "disconnected");
+      await endUserAction(page);
 
       await expect(page.getByTestId(INDICATOR_TESTID)).toHaveCount(0, {
         timeout: 3_000,
@@ -323,11 +314,11 @@ for (const { label, viewport, isMobile } of [
     }) => {
       await page.goto("/");
       await waitForApp(page);
-      await setSyncStatus(page, "connecting");
+      await startUserAction(page);
 
       const indicator = page.getByTestId(INDICATOR_TESTID);
       await expect(indicator).toBeVisible();
-      await expect(indicator).toHaveAttribute("data-reason", "connecting");
+      await expect(indicator).toHaveAttribute("data-reason", "sending");
       await expect(page.getByTestId(DOT_TESTID)).toHaveCount(10);
 
       // In the flow of the chat section, not fixed to the window.
@@ -350,9 +341,7 @@ for (const { label, viewport, isMobile } of [
       // Below the Welcome copy, as part of it.
       expect(box!.y).toBeGreaterThan(headingBox!.y + headingBox!.height);
 
-      await expect(page.getByTestId(STATUS_TESTID)).toContainText(
-        "Connecting"
-      );
+      await expect(page.getByTestId(STATUS_TESTID)).toContainText("Sending");
     });
 
     test("with a room open, the dots dock just above the composer", async ({
@@ -361,7 +350,7 @@ for (const { label, viewport, isMobile } of [
       await page.goto("/");
       await waitForApp(page);
       await openRoomWithComposer(page, isMobile);
-      await setSyncStatus(page, "connecting");
+      await startUserAction(page);
 
       const indicator = page.getByTestId(INDICATOR_TESTID);
       await expect(indicator).toBeVisible();
@@ -403,7 +392,7 @@ for (const { label, viewport, isMobile } of [
         spacer.evaluate((el) => el.getBoundingClientRect().height);
       expect(await spacerHeight()).toBe(0);
 
-      await setSyncStatus(page, "connecting");
+      await startUserAction(page);
       const indicator = page.getByTestId(INDICATOR_TESTID);
       await expect(indicator).toBeVisible();
 
@@ -423,7 +412,7 @@ for (const { label, viewport, isMobile } of [
       await expect.poll(clearance).toBeGreaterThanOrEqual(11);
       expect(await clearance()).toBeLessThanOrEqual(13.5);
 
-      await setSyncStatus(page, "disconnected");
+      await endUserAction(page);
       await expect(indicator).toHaveCount(0, { timeout: 3_000 });
       await expect.poll(spacerHeight).toBe(0);
     });
@@ -431,7 +420,7 @@ for (const { label, viewport, isMobile } of [
     test("dots ride one wave, each on its own curve", async ({ page }) => {
       await page.goto("/");
       await waitForApp(page);
-      await setSyncStatus(page, "connecting");
+      await startUserAction(page);
       await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
       await expect(page.getByTestId(DOT_TESTID)).toHaveCount(10);
 
@@ -498,7 +487,7 @@ for (const { label, viewport, isMobile } of [
     test("does not intercept taps", async ({ page }) => {
       await page.goto("/");
       await waitForApp(page);
-      await setSyncStatus(page, "connecting");
+      await startUserAction(page);
 
       const indicator = page.getByTestId(INDICATOR_TESTID);
       await expect(indicator).toBeVisible();
@@ -538,7 +527,7 @@ for (const { label, viewport, isMobile } of [
       await page.goto("/");
       await waitForApp(page);
       await openRoomWithComposer(page, isMobile);
-      await setSyncStatus(page, "connecting");
+      await startUserAction(page);
 
       const indicator = page.getByTestId(INDICATOR_TESTID);
       await expect(indicator).toBeVisible();
@@ -554,7 +543,7 @@ for (const { label, viewport, isMobile } of [
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.goto("/");
       await waitForApp(page);
-      await setSyncStatus(page, "connecting");
+      await startUserAction(page);
 
       const indicator = page.getByTestId(INDICATOR_TESTID);
       await expect(indicator).toBeVisible();
@@ -566,123 +555,124 @@ for (const { label, viewport, isMobile } of [
       expect(name).toBe("river-flow-shimmer");
     });
 
-    test("disconnected in a no-sync build stays hidden, error stays hidden", async ({
-      page,
-    }) => {
+    test("a user action shows nothing unless connected", async ({ page }) => {
+      // Connecting and reconnecting are background work for the pill; the
+      // primary only follows what the user waits on from a live node.
       await page.goto("/");
       await waitForApp(page);
+      await hook(page, "beginUserAction");
 
-      await setSyncStatus(page, "connecting");
-      await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
-
-      await setSyncStatus(page, "disconnected");
-      await expect(page.getByTestId(INDICATOR_TESTID)).toHaveCount(0, {
-        timeout: 3_000,
-      });
-
-      await setSyncStatus(page, "error");
-      // `Error` is idle, so nothing may appear. The wait gives a wrong
-      // implementation time to show up rather than racing a fast check.
-      await page.waitForTimeout(1_000);
-      await expect(page.getByTestId(INDICATOR_TESTID)).toHaveCount(0);
+      for (const state of ["connecting", "disconnected", "error"]) {
+        await setSyncStatus(page, state);
+        // The wait gives a wrong implementation time to show up.
+        await page.waitForTimeout(1_000);
+        await expect(page.getByTestId(INDICATOR_TESTID), state).toHaveCount(0);
+      }
     });
 
     test("the hold keeps the reason", async ({ page }) => {
       await page.goto("/");
       await waitForApp(page);
 
-      await setSyncStatus(page, "connecting");
+      await startUserAction(page, "saving");
       const indicator = page.getByTestId(INDICATOR_TESTID);
       await expect(indicator).toBeVisible();
-      await expect(indicator).toHaveAttribute("data-reason", "connecting");
+      await expect(indicator).toHaveAttribute("data-reason", "saving");
 
-      await setSyncStatus(page, "disconnected");
-      // Still visible and still reporting "connecting" while held — not
-      // blank, and not swapped to a different reason. The wait is what makes
-      // this a check on the hold: without it the assertion can pass in the
-      // few ms before a hold-less build unmounts the dots.
+      await endUserAction(page);
+      // Still visible and still reporting "saving" while held — not blank.
+      // The wait is what makes this a check on the hold: without it the
+      // assertion can pass in the few ms before a hold-less build unmounts
+      // the dots.
       await page.waitForTimeout(500);
       await expect(indicator).toHaveCount(1);
-      await expect(indicator).toHaveAttribute("data-reason", "connecting");
+      await expect(indicator).toHaveAttribute("data-reason", "saving");
 
       await expect(indicator).toHaveCount(0, { timeout: 3_000 });
     });
 
-    test("connected with rooms still loading shows loading-rooms", async ({
-      page,
-    }) => {
-      // PREMISE: this build's ROOMS_LOAD_STATE sits at its `Loading` default
-      // forever — nothing in the example fixture advances it — so calling
-      // ONLY `setSyncStatus("connected")`, with no `setRoomsLoadState` call,
-      // is enough to observe `data-reason="loading-rooms"` (row 5 of the
-      // `loading_reason` table). If the example fixture ever starts writing
-      // ROOMS_LOAD_STATE on its own, this test would stop proving anything.
+    test("background work never shows the primary dots", async ({ page }) => {
+      // Connected with rooms still loading (this build's ROOMS_LOAD_STATE
+      // sits at `Loading`) plus an outstanding background request: busy for
+      // the pill, idle for the primary.
       await page.goto("/");
       await waitForApp(page);
-
       await setSyncStatus(page, "connected");
-      const indicator = page.getByTestId(INDICATOR_TESTID);
-      await expect(indicator).toBeVisible();
-      await expect(indicator).toHaveAttribute("data-reason", "loading-rooms");
+      await hook(page, "beginBackgroundRequest");
 
-      await setLoadState(page, "loaded");
-      await expect(indicator).toHaveCount(0, { timeout: 3_000 });
+      await page.waitForTimeout(1_500);
+      await expect(page.getByTestId(INDICATOR_TESTID)).toHaveCount(0);
+      await expect(page.getByTestId(STATUS_TESTID)).toHaveText("");
     });
   });
 
-  test.describe(`Phase 2: in-flight tracker (${label})`, () => {
+  test.describe(`User actions (${label})`, () => {
     test.use({ viewport });
 
-    test('beginActivity("fetch") shows refreshing, and ending it hides the dots after the hold', async ({
+    test("a room change keeps the dots until the node answers its UPDATE", async ({
       page,
     }) => {
       await page.goto("/");
       await waitForApp(page);
       await setSyncStatus(page, "connected");
-      await setLoadState(page, "loaded");
       await settleIdle(page);
 
-      await beginActivity(page, "fetch");
-      const indicator = page.getByTestId(INDICATOR_TESTID);
-      await expect(indicator).toBeVisible();
-      await expect(indicator).toHaveAttribute("data-reason", "refreshing");
-
-      await endActivity(page, "fetch");
-      await expect(indicator).toHaveCount(0, { timeout: 3_000 });
-    });
-
-    test('beginActivity("send") shows sending, and ending it hides the dots after the hold', async ({
-      page,
-    }) => {
-      await page.goto("/");
-      await waitForApp(page);
-      await setSyncStatus(page, "connected");
-      await setLoadState(page, "loaded");
-      await settleIdle(page);
-
-      await beginActivity(page, "send");
+      // Queued, then carried by an UPDATE.
+      await hook(page, "awaitRoomUpdate");
+      await hook(page, "sendRoomUpdate");
       const indicator = page.getByTestId(INDICATOR_TESTID);
       await expect(indicator).toBeVisible();
       await expect(indicator).toHaveAttribute("data-reason", "sending");
 
-      await endActivity(page, "send");
+      // Still waiting on the node.
+      await page.waitForTimeout(1_200);
+      await expect(indicator).toBeVisible();
+
+      await hook(page, "answerRoomUpdate");
       await expect(indicator).toHaveCount(0, { timeout: 3_000 });
     });
 
-    test("a send faster than 500ms shows nothing", async ({ page }) => {
-      // The everyday case the debounce exists for: most sends round-trip
+    test("a rejected UPDATE ends the wait", async ({ page }) => {
+      await page.goto("/");
+      await waitForApp(page);
+      await setSyncStatus(page, "connected");
+      await settleIdle(page);
+
+      await hook(page, "awaitRoomUpdate");
+      await hook(page, "sendRoomUpdate");
+      const indicator = page.getByTestId(INDICATOR_TESTID);
+      await expect(indicator).toBeVisible();
+
+      await hook(page, "failRoomUpdate");
+      await expect(indicator).toHaveCount(0, { timeout: 3_000 });
+    });
+
+    test("creating a room has its own reason", async ({ page }) => {
+      await page.goto("/");
+      await waitForApp(page);
+      await startUserAction(page, "creating-room");
+      const indicator = page.getByTestId(INDICATOR_TESTID);
+      await expect(indicator).toBeVisible();
+      await expect(indicator).toHaveAttribute("data-reason", "creating-room");
+      await expect(page.getByTestId(STATUS_TESTID)).toContainText(
+        "Creating room"
+      );
+    });
+
+    test("a reply faster than 500ms shows nothing", async ({ page }) => {
+      // The everyday case the debounce exists for: most replies come back
       // well under 500ms, so they must never cause a visible blip.
       await page.goto("/");
       await waitForApp(page);
       await setSyncStatus(page, "connected");
-      await setLoadState(page, "loaded");
       await settleIdle(page);
 
       const readLog = await recordPresence(page);
       await page.evaluate(() => {
         const w = window as any;
-        w.__riverTest.beginActivity("send");
-        setTimeout(() => w.__riverTest.endActivity("send"), 100);
+        w.__riverTest.awaitRoomUpdate();
+        w.__riverTest.sendRoomUpdate();
+        setTimeout(() => w.__riverTest.answerRoomUpdate(), 100);
       });
 
       await page.waitForTimeout(2_000);

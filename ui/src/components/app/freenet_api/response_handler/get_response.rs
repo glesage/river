@@ -6,7 +6,6 @@ use crate::components::app::freenet_api::response_handler::update_notification::
     clear_upgrade_target, follow_upgrade_pointer_if_needed, upgrade_target_owner,
 };
 use crate::components::app::freenet_api::room_synchronizer::RoomSynchronizer;
-use crate::components::app::network_activity::{self, ActivityKind};
 use crate::components::app::notifications::mark_initial_sync_complete;
 use crate::components::app::sync_info::{RoomSyncStatus, SYNC_INFO};
 use crate::components::app::{CURRENT_ROOM, PENDING_INVITES, ROOMS, WEB_API};
@@ -37,12 +36,6 @@ pub async fn handle_get_response(
     _contract: Vec<u8>,
     state: Vec<u8>,
 ) -> Result<(), SynchronizerError> {
-    // Network activity indicator (Phase 2): settle the Fetch entry for this
-    // key FIRST, before any logging or early return (including the
-    // backward-probe routing below) — otherwise that path would leave the
-    // entry stuck until the 20s expiry.
-    network_activity::end(ActivityKind::Fetch, *key.id());
-
     info!("Received get response for key {key}");
 
     // Backward-probe routing (freenet/river#292): a GET response whose

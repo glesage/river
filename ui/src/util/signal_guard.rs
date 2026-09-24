@@ -322,14 +322,15 @@ mod tests {
                  fallibly. Remove the entry rather than leaving a vacuous pin."
             );
         }
-        // EXACT count, not a floor. There are 13 fallible memos across the 9
-        // files (conversation.rs alone has 4, member_info_modal.rs 2). A floor of
+        // EXACT count, not a floor. There are 14 fallible memos across the 9
+        // files (conversation.rs alone has 4, member_info_modal.rs 2,
+        // network_activity_indicator.rs 2: one per loading indicator). A floor of
         // 8 left exactly the slack this assertion exists to remove: the matcher
         // could stop finding all four conversation.rs bodies -- the file that
         // caused #555 -- and still pass.
         assert_eq!(
-            checked, 13,
-            "expected to check exactly the 13 known fallible memos, checked \
+            checked, 14,
+            "expected to check exactly the 14 known fallible memos, checked \
              {checked}. If you added or removed a fallible memo, update this \
              number deliberately; if you did not, the matcher has stopped \
              finding memo bodies and this pin has gone vacuous."
@@ -397,10 +398,11 @@ mod tests {
         // some of app.rs's five fallible effects. Seven fallible use_effect
         // reads across the three files (app.rs has five, members.rs and
         // dm_thread_modal.rs one each) is the full set freenet/river#559
-        // identified; the eighth is network_activity_indicator.rs's gate.
+        // identified; the eighth and ninth are network_activity_indicator.rs's
+        // two gates (primary and pill).
         assert_eq!(
-            checked, 8,
-            "expected to check exactly the 8 known fallible effects, checked \
+            checked, 9,
+            "expected to check exactly the 9 known fallible effects, checked \
              {checked}. If you added or removed a fallible effect, update this \
              number deliberately; if you did not, the matcher has stopped \
              finding effect bodies and this pin has gone vacuous."

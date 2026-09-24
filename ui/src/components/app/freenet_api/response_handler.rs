@@ -26,7 +26,6 @@ use crate::components::app::chat_delegate::{
     OUTBOUND_DMS_STORAGE_KEY, ROOMS_META_KEY, ROOMS_STORAGE_KEY,
 };
 use crate::components::app::document_title::{mark_current_room_as_read, update_document_title};
-use crate::components::app::network_activity::{self, ActivityKind};
 use crate::components::app::notifications::mark_initial_sync_complete;
 use crate::components::app::{CURRENT_ROOM, ROOMS};
 use crate::room_data::CurrentRoom;
@@ -131,10 +130,7 @@ impl ResponseHandler {
                 }
                 ContractResponse::NotFound { instance_id } => {
                     // A GET for a contract the network does not have. It is
-                    // not a `GetResponse`, so `handle_get_response` never runs
-                    // and would not settle the indicator's Fetch entry; without
-                    // this the dots stay on until the 20s expiry.
-                    network_activity::end(ActivityKind::Fetch, instance_id);
+                    // not a `GetResponse`, so `handle_get_response` never runs.
                     info!("Contract not found on the network: {instance_id}");
                 }
                 _ => {

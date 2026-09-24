@@ -1,7 +1,7 @@
 pub mod chat_delegate;
 pub mod document_title;
 pub mod freenet_api;
-pub mod network_activity;
+pub mod node_activity;
 pub mod notifications;
 pub mod receive_times;
 pub mod sync_info;
@@ -11,6 +11,7 @@ use crate::components::app::document_title::DocumentTitleUpdater;
 use crate::components::app::freenet_api::freenet_synchronizer::SynchronizerMessage;
 use crate::components::app::freenet_api::freenet_synchronizer::SynchronizerStatus;
 use crate::components::app::freenet_api::FreenetSynchronizer;
+use crate::components::app::node_activity::NodeApi;
 use crate::components::direct_messages::{DmThreadModal, InviteViaDmPickerModal};
 use crate::components::members::member_info_modal::MemberInfoModal;
 use crate::components::members::Invitation;
@@ -31,7 +32,6 @@ use dioxus::document::{Link, Stylesheet};
 use dioxus::logger::tracing::{debug, error, info, warn};
 use dioxus::prelude::*;
 use ed25519_dalek::VerifyingKey;
-use freenet_stdlib::client_api::WebApi;
 use river_core::room_state::member::MemberId;
 use web_sys::window;
 
@@ -65,7 +65,9 @@ pub static SYNC_STATUS: GlobalSignal<SynchronizerStatus> = Global::new(|| {
     }
 });
 pub static SYNCHRONIZER: GlobalSignal<FreenetSynchronizer> = Global::new(FreenetSynchronizer::new);
-pub static WEB_API: GlobalSignal<Option<WebApi>> = Global::new(|| None);
+/// The node connection. Holds [`NodeApi`], which records every request so
+/// the loading indicators know what is still awaiting a reply.
+pub static WEB_API: GlobalSignal<Option<NodeApi>> = Global::new(|| None);
 pub static AUTH_TOKEN: GlobalSignal<Option<String>> = Global::new(|| None);
 
 // Tracks which rooms need to be synced due to USER actions (not network updates)

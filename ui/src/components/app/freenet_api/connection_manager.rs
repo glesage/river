@@ -85,6 +85,11 @@ mod imp {
                     // (freenet/river#382). Recorded before any early return.
                     crate::components::app::freenet_api::connection_watchdog::record_ws_activity();
 
+                    // Settle whatever request this answers, for the loading
+                    // indicators. Here, before any early return, because this
+                    // is the only place the typed `ClientError` still exists.
+                    crate::components::app::node_activity::on_reply(&result);
+
                     // Check for AUTH_TOKEN_INVALID error - this means the node was restarted
                     // and we need to refresh the page to get a new valid token
                     if let Err(ref e) = result {
@@ -244,7 +249,8 @@ mod imp {
             match result {
                 futures::future::Either::Left((Ok(_), _)) => {
                     info!("WebSocket connection established successfully");
-                    *WEB_API.write() = Some(web_api);
+                    *WEB_API.write() =
+                        Some(crate::components::app::node_activity::NodeApi::new(web_api));
                     self.connected = true;
                     *SYNC_STATUS.write() = SynchronizerStatus::Connected;
                     Ok(())

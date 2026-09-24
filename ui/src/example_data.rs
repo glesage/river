@@ -7,7 +7,7 @@ use crate::{
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use freenet_scaffold::util::fast_hash;
 use freenet_scaffold::ComposableState;
-use freenet_stdlib::prelude::{ContractCode, ContractInstanceId, ContractKey, Parameters};
+use freenet_stdlib::prelude::{ContractCode, ContractKey, Parameters};
 use lipsum::lipsum;
 use rand::rngs::OsRng;
 use river_core::room_state::ChatRoomParametersV1;
@@ -1506,54 +1506,116 @@ pub fn install_test_hooks() {
     );
     set_sync_status.forget();
 
-    // Drive the in-flight GET/UPDATE tracker behind the indicator's
-    // `refreshing` / `sending` states. These go through the real
-    // `network_activity::begin`/`end`, so the defer and the expiry timer are
-    // exercised too; only the request itself is missing. One fixed contract
-    // id, so a begin/end pair always settles the same entry.
-    fn parse_activity_kind(
-        kind: &str,
-    ) -> Option<crate::components::app::network_activity::ActivityKind> {
-        use crate::components::app::network_activity::ActivityKind;
-        match kind {
-            "fetch" => Some(ActivityKind::Fetch),
-            "send" => Some(ActivityKind::Send),
-            other => {
-                crate::util::debug_log(&format!("[test] unknown activity kind {other:?}"));
-                None
-            }
-        }
-    }
-    const TEST_ACTIVITY_ID: [u8; 32] = [0xA5; 32];
-    let begin_activity = Closure::wrap(Box::new(move |kind: String| {
-        if let Some(kind) = parse_activity_kind(&kind) {
-            crate::components::app::network_activity::begin(
-                kind,
-                ContractInstanceId::new(TEST_ACTIVITY_ID),
-            );
-        }
-    }) as Box<dyn FnMut(String)>);
-    let _ = js_sys::Reflect::set(
-        &hooks,
-        &JsValue::from_str("beginActivity"),
-        begin_activity.as_ref(),
-    );
-    begin_activity.forget();
+    // Drive `node_activity`, which feeds both loading indicators, through its
+    // real wrappers (so the defer and the sweeps are exercised too); only the
+    // node is missing. One fixed test room, so each hook moves the same
+    // request. `riverTest` passes `undefined` for a missing argument, which a
+    // `String` parameter would reject, so these take `JsValue` or nothing.
+    {
+        use crate::components::app::node_activity::{self, ActionKind, BusyGuard, RequestKind};
+        use freenet_stdlib::client_api::{ClientError, ContractResponse, ErrorKind, HostResponse};
 
-    let end_activity = Closure::wrap(Box::new(move |kind: String| {
-        if let Some(kind) = parse_activity_kind(&kind) {
-            crate::components::app::network_activity::end(
-                kind,
-                ContractInstanceId::new(TEST_ACTIVITY_ID),
-            );
+        fn test_key() -> ContractKey {
+            crate::util::owner_vk_to_contract_key(
+                &SigningKey::from_bytes(&[0xA5; 32]).verifying_key(),
+            )
         }
-    }) as Box<dyn FnMut(String)>);
-    let _ = js_sys::Reflect::set(
-        &hooks,
-        &JsValue::from_str("endActivity"),
-        end_activity.as_ref(),
-    );
-    end_activity.forget();
+
+        thread_local! {
+            static USER_ACTION: std::cell::RefCell<Option<BusyGuard>> =
+                const { std::cell::RefCell::new(None) };
+        }
+
+        fn expose<T: ?Sized + wasm_bindgen::closure::WasmClosure>(
+            hooks: &js_sys::Object,
+            name: &str,
+            hook: Closure<T>,
+        ) {
+            let _ = js_sys::Reflect::set(hooks, &JsValue::from_str(name), hook.as_ref());
+            hook.forget();
+        }
+
+        // A scoped user action, like a handler awaiting a delegate signature.
+        // Optional argument: "sending" (default), "saving", "creating-room".
+        expose(
+            &hooks,
+            "beginUserAction",
+            Closure::wrap(Box::new(move |kind: JsValue| {
+                let kind = match kind.as_string().as_deref() {
+                    Some("saving") => ActionKind::Saving,
+                    Some("creating-room") => ActionKind::CreatingRoom,
+                    _ => ActionKind::Sending,
+                };
+                let guard = node_activity::busy(kind);
+                USER_ACTION.with(|a| *a.borrow_mut() = Some(guard));
+            }) as Box<dyn FnMut(JsValue)>),
+        );
+        expose(
+            &hooks,
+            "endUserAction",
+            Closure::wrap(Box::new(move || {
+                USER_ACTION.with(|a| a.borrow_mut().take());
+            }) as Box<dyn FnMut()>),
+        );
+
+        // A user change riding a room UPDATE: queued, sent, then answered or
+        // failed by the node.
+        expose(
+            &hooks,
+            "awaitRoomUpdate",
+            Closure::wrap(Box::new(move || {
+                node_activity::await_room_update(*test_key().id(), ActionKind::Sending);
+            }) as Box<dyn FnMut()>),
+        );
+        expose(
+            &hooks,
+            "sendRoomUpdate",
+            Closure::wrap(Box::new(move || {
+                node_activity::record_request(RequestKind::Update(*test_key().id()));
+            }) as Box<dyn FnMut()>),
+        );
+        expose(
+            &hooks,
+            "answerRoomUpdate",
+            Closure::wrap(Box::new(move || {
+                node_activity::on_reply(&Ok(HostResponse::ContractResponse(
+                    ContractResponse::UpdateResponse {
+                        key: test_key(),
+                        summary: freenet_stdlib::prelude::StateSummary::from(vec![]),
+                    },
+                )));
+            }) as Box<dyn FnMut()>),
+        );
+        expose(
+            &hooks,
+            "failRoomUpdate",
+            Closure::wrap(Box::new(move || {
+                node_activity::on_reply(&Err(ClientError::from(ErrorKind::OperationError {
+                    cause: "UPDATE failed: test".into(),
+                })));
+            }) as Box<dyn FnMut()>),
+        );
+
+        // A background request nobody is waiting on, like a refresh GET.
+        expose(
+            &hooks,
+            "beginBackgroundRequest",
+            Closure::wrap(Box::new(move || {
+                node_activity::record_request(RequestKind::Get(*test_key().id()));
+            }) as Box<dyn FnMut()>),
+        );
+        expose(
+            &hooks,
+            "endBackgroundRequest",
+            Closure::wrap(Box::new(move || {
+                node_activity::on_reply(&Ok(HostResponse::ContractResponse(
+                    ContractResponse::NotFound {
+                        instance_id: *test_key().id(),
+                    },
+                )));
+            }) as Box<dyn FnMut()>),
+        );
+    }
 
     let _ = js_sys::Reflect::set(&window, &JsValue::from_str("__riverTest"), &hooks);
 }

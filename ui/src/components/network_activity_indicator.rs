@@ -1,38 +1,49 @@
-//! "River is loading" indicator: ten accent-blue dots riding one travelling
-//! sine wave, shown inside the chat section. With a room open they dock at the
-//! bottom of the message history, just above the composer, and the history
-//! gains bottom padding so they never cover the last message; with no room
-//! open they sit in the no-room screen. Never `position: fixed`: they belong
-//! to the chat, not to the window.
+//! The two loading indicators.
 //!
-//! Two pure pieces decide what it shows, so both are unit-testable natively:
+//! - **Primary**: ten accent-blue dots riding one travelling sine wave, shown
+//!   inside the chat section only while the USER is waiting on the node's
+//!   reply to something they did (sending, reacting, creating or joining a
+//!   room, saving a setting), and only once that wait passes 500 ms. With a
+//!   room open they dock just above the composer and the history gains bottom
+//!   padding so they never cover the last message; with no room open they sit
+//!   in the no-room screen. Never `position: fixed`.
+//! - **Secondary**: three small dots inside the connection pill, shown the
+//!   moment any background work starts (connecting, loading or re-syncing
+//!   rooms, refreshes, delegate saves, anything still travelling through
+//!   Freenet) and kept at least 1 s.
 //!
-//! - [`loading_reason`] says whether River is busy **right now**, and why.
-//! - [`DisplayGate`] decides whether the dots are **on screen**: a 500 ms
-//!   debounce before they appear and a 1 s minimum once they have.
+//! Pure pieces decide what shows, so they are unit-testable natively:
 //!
-//! [`NetworkActivityIndicator`], mounted once in `App`, owns the gate and the
-//! screen-reader live region. The places that draw the dots read the gate
-//! through [`visible_activity`].
+//! - [`loading_reason`] and [`background_busy`] say whether each is busy
+//!   **right now**.
+//! - [`DisplayGate`] decides whether dots are **on screen**, with each
+//!   indicator's [`GateTiming`].
 //!
-//! See docs/plans/2026-09-24-network-activity-indicator.md.
+//! [`NetworkActivityIndicator`], mounted once in `App`, owns both gates and the
+//! screen-reader live region. See docs/plans/loading-indicators.md.
 
 use crate::components::app::chat_delegate::{RoomsLoadState, ROOMS_LOAD_STATE};
 use crate::components::app::freenet_api::freenet_synchronizer::SynchronizerStatus;
-use crate::components::app::network_activity::{ActivityKind, IN_FLIGHT};
+use crate::components::app::node_activity::{ActionKind, NODE_ACTIVITY};
 use crate::components::app::sync_info::{now_ms, SYNC_INFO};
 use crate::components::app::{PENDING_INVITES, ROOMS, SYNC_STATUS};
 use dioxus::prelude::*;
 
 const DOT_COUNT: usize = 10;
 
-/// Whether the dots are on screen, and why. Written only by
+/// Whether the primary dots are on screen, and why. Written only by
 /// [`NetworkActivityIndicator`]'s effect (synchronously, a single `set`) and by
 /// its timers (inside `crate::util::defer`).
-static ACTIVITY_GATE: GlobalSignal<DisplayGate> = Global::new(DisplayGate::default);
+static ACTIVITY_GATE: GlobalSignal<DisplayGate<LoadingReason>> =
+    Global::new(|| DisplayGate::new(PRIMARY_TIMING));
 
-/// The debounced, held reason to draw the dots for, or `None`. Subscribes the
-/// calling component, so it re-renders when the dots come and go.
+/// Whether the pill's dots are on screen. Same writers as `ACTIVITY_GATE`.
+static BACKGROUND_GATE: GlobalSignal<DisplayGate<()>> =
+    Global::new(|| DisplayGate::new(SECONDARY_TIMING));
+
+/// The debounced, held reason to draw the primary dots for, or `None`.
+/// Subscribes the calling component, so it re-renders when the dots come and
+/// go.
 ///
 /// `read()`, not `try_read()`: every write to the gate is a single `set` in a
 /// clean context, so no borrow outlives a statement and a render cannot meet
@@ -42,10 +53,16 @@ pub(crate) fn visible_activity() -> Option<LoadingReason> {
     ACTIVITY_GATE.read().visible_reason()
 }
 
-/// Owns the loading decision and the show/hide timing, and renders the
+/// Whether the pill's background dots are on screen. Same `read()` reasoning
+/// as [`visible_activity`].
+pub(crate) fn background_activity_visible() -> bool {
+    BACKGROUND_GATE.read().visible_reason().is_some()
+}
+
+/// Owns both loading decisions and their show/hide timing, and renders the
 /// screen-reader live region. Mounted once in `App` and never unmounted. The
-/// dots themselves are drawn by [`NetworkActivityDots`] inside the chat
-/// section.
+/// dots themselves are drawn by [`NetworkActivityDots`] in the chat section and
+/// [`PillActivityDots`] in the connection pill.
 #[component]
 pub fn NetworkActivityIndicator() -> Element {
     // Reads signals only, never a captured value: this component is always
@@ -53,9 +70,37 @@ pub fn NetworkActivityIndicator() -> Element {
     // (freenet/river#291).
     //
     // On a contended read each input falls back to its IDLE value. The
-    // indicator is decorative: a blank lasting one macrotask (which the nudge
-    // corrects) is better than a false "busy" that lingers.
+    // indicators are decorative: a blank lasting one macrotask (which the
+    // nudge corrects) is better than a false "busy" that lingers.
     let reason = use_memo(move || {
+        crate::util::signal_guard::anchor();
+        let Ok(status) = SYNC_STATUS.try_read() else {
+            crate::util::signal_guard::schedule_nudge();
+            return None;
+        };
+        let status = status.clone();
+        let joining = match PENDING_INVITES.try_read() {
+            Ok(invites) => invites.map.values().any(|j| j.status.is_in_progress()),
+            Err(_) => {
+                crate::util::signal_guard::schedule_nudge();
+                false
+            }
+        };
+        let user_action = match NODE_ACTIVITY.try_read() {
+            Ok(activity) => activity.user_reason(),
+            Err(_) => {
+                crate::util::signal_guard::schedule_nudge();
+                None
+            }
+        };
+        loading_reason(&ActivityInputs {
+            sync_status: &status,
+            joining,
+            user_action,
+        })
+    });
+
+    let background = use_memo(move || {
         crate::util::signal_guard::anchor();
         let Ok(status) = SYNC_STATUS.try_read() else {
             crate::util::signal_guard::schedule_nudge();
@@ -67,13 +112,6 @@ pub fn NetworkActivityIndicator() -> Element {
             Err(_) => {
                 crate::util::signal_guard::schedule_nudge();
                 RoomsLoadState::Loaded
-            }
-        };
-        let joining = match PENDING_INVITES.try_read() {
-            Ok(invites) => invites.map.values().any(|j| j.status.is_in_progress()),
-            Err(_) => {
-                crate::util::signal_guard::schedule_nudge();
-                false
             }
         };
         // Both guards live only inside this block, so none is still held if a
@@ -89,42 +127,39 @@ pub fn NetworkActivityIndicator() -> Element {
             };
             sync_info.rooms_syncing_count(|k| rooms.map.contains_key(k))
         };
-        let (fetches_in_flight, sends_in_flight) = match IN_FLIGHT.try_read() {
-            Ok(f) => (f.count(ActivityKind::Fetch), f.count(ActivityKind::Send)),
+        let requests = match NODE_ACTIVITY.try_read() {
+            Ok(activity) => activity.background_requests(),
             Err(_) => {
                 crate::util::signal_guard::schedule_nudge();
-                (0, 0)
+                false
             }
         };
-        loading_reason(&ActivityInputs {
+        background_busy(&BackgroundInputs {
             sync_status: &status,
             sync_enabled: !cfg!(feature = "no-sync"),
             rooms_load_state,
-            joining,
             rooms_syncing,
-            fetches_in_flight,
-            sends_in_flight,
+            requests,
         })
+        .then_some(())
     });
 
-    // Debounce + minimum-visible timing, driven from the memo.
+    // Show/hide timing, driven from the memos.
     use_effect(move || {
         crate::util::signal_guard::anchor();
         let Ok(r) = reason.try_read().map(|r| *r) else {
             crate::util::signal_guard::schedule_nudge();
             return;
         };
-        // peek(): this effect must not subscribe to the signal it writes, or it
-        // re-runs itself. Written synchronously for the same reason: the
-        // "never defer in use_effect" rule is about signals the effect reads.
-        let current = *ACTIVITY_GATE.peek();
-        let (next, wake) = current.on_reason(r, now_ms());
-        if next != current {
-            *ACTIVITY_GATE.write() = next;
-        }
-        if let Some(delay_ms) = wake {
-            schedule_gate_tick(delay_ms);
-        }
+        drive_gate(&ACTIVITY_GATE, r);
+    });
+    use_effect(move || {
+        crate::util::signal_guard::anchor();
+        let Ok(b) = background.try_read().map(|b| *b) else {
+            crate::util::signal_guard::schedule_nudge();
+            return;
+        };
+        drive_gate(&BACKGROUND_GATE, b);
     });
 
     // The GATED reason, not the raw memo: the label obeys the same 500 ms
@@ -144,11 +179,29 @@ pub fn NetworkActivityIndicator() -> Element {
     }
 }
 
-/// The dots, drawn only while [`visible_activity`] says so. `docked` pins them
-/// to the bottom-centre of the nearest positioned ancestor (the message
-/// history, directly above the composer); otherwise they sit in the flow.
-/// Render at most one at a time: tests and assistive tech address them by
-/// `data-testid`.
+/// Feed a new busy/idle reading to `gate`. Called from an effect, so it uses
+/// `peek()` (the effect must not subscribe to the signal it writes, or it
+/// re-runs itself) and writes synchronously: the "never defer in use_effect"
+/// rule is about signals the effect reads.
+fn drive_gate<R: Copy + PartialEq + 'static>(
+    gate: &'static GlobalSignal<DisplayGate<R>>,
+    reason: Option<R>,
+) {
+    let current = *gate.peek();
+    let (next, wake) = current.on_reason(reason, now_ms());
+    if next != current {
+        *gate.write() = next;
+    }
+    if let Some(delay_ms) = wake {
+        schedule_gate_tick(gate, delay_ms);
+    }
+}
+
+/// The primary dots, drawn only while [`visible_activity`] says so. `docked`
+/// pins them to the bottom-centre of the nearest positioned ancestor (the
+/// message history, directly above the composer); otherwise they sit in the
+/// flow. Render at most one at a time: tests and assistive tech address them
+/// by `data-testid`.
 #[component]
 pub fn NetworkActivityDots(docked: bool) -> Element {
     // Same `read()` reasoning as `visible_activity`.
@@ -183,68 +236,84 @@ pub fn NetworkActivityDots(docked: bool) -> Element {
     }
 }
 
-/// Re-evaluate the gate after `delay_ms`. No cancellation is needed: `on_tick`
+/// Three small dots inside the connection pill while [`background_activity_visible`]
+/// says so. `span`s, not `div`s: the pill's first `div` is its status dot,
+/// which connection-status-indicator.spec.ts reads.
+#[component]
+pub fn PillActivityDots() -> Element {
+    if !background_activity_visible() {
+        return rsx! {};
+    }
+    rsx! {
+        span {
+            class: "pill-activity",
+            "aria-hidden": "true",
+            "data-testid": "connection-activity-dots",
+            for i in 0..3 {
+                span { key: "{i}", class: "pill-activity-dot", style: "--i: {i};" }
+            }
+        }
+    }
+}
+
+/// Re-evaluate `gate` after `delay_ms`. No cancellation is needed: `on_tick`
 /// is idempotent, so a stale timer is a no-op.
-fn schedule_gate_tick(delay_ms: f64) {
+fn schedule_gate_tick<R: Copy + PartialEq + 'static>(
+    gate: &'static GlobalSignal<DisplayGate<R>>,
+    delay_ms: f64,
+) {
     crate::util::safe_spawn_local(async move {
         crate::util::sleep(std::time::Duration::from_millis(
             delay_ms.max(0.0).ceil() as u64
         ))
         .await;
         crate::util::defer(move || {
-            let current = *ACTIVITY_GATE.peek();
+            let current = *gate.peek();
             let now = now_ms();
             let next = current.on_tick(now);
             if next != current {
-                *ACTIVITY_GATE.write() = next;
+                *gate.write() = next;
             } else if let Some(deadline) = next.pending_deadline() {
                 // Fired early against `Date.now()`. If this was the only timer
                 // armed, doing nothing would strand the gate, so try again.
                 if deadline > now {
-                    schedule_gate_tick(deadline - now);
+                    schedule_gate_tick(gate, deadline - now);
                 }
             }
         });
     });
 }
 
-/// Why the indicator is showing. Variants are in priority order: when several
-/// apply, [`loading_reason`] picks the first.
+/// Why the primary dots are showing: what the user is waiting on. Variants
+/// are in priority order: when several apply, [`loading_reason`] picks the
+/// first. There is deliberately no variant for background work (connecting,
+/// loading or re-syncing rooms, refreshes): that belongs to the pill.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum LoadingReason {
-    Connecting,
-    Reconnecting,
     JoiningRoom,
-    LoadingRooms,
-    SyncingRooms,
-    Refreshing,
+    CreatingRoom,
     Sending,
+    Saving,
 }
 
 impl LoadingReason {
     /// Value of the indicator's `data-reason` attribute.
     pub(crate) fn as_attr(self) -> &'static str {
         match self {
-            LoadingReason::Connecting => "connecting",
-            LoadingReason::Reconnecting => "reconnecting",
             LoadingReason::JoiningRoom => "joining-room",
-            LoadingReason::LoadingRooms => "loading-rooms",
-            LoadingReason::SyncingRooms => "syncing-rooms",
-            LoadingReason::Refreshing => "refreshing",
+            LoadingReason::CreatingRoom => "creating-room",
             LoadingReason::Sending => "sending",
+            LoadingReason::Saving => "saving",
         }
     }
 
     /// Screen-reader label for the live region.
     pub(crate) fn label(self) -> &'static str {
         match self {
-            LoadingReason::Connecting => "Connecting to Freenet…",
-            LoadingReason::Reconnecting => "Reconnecting to Freenet…",
             LoadingReason::JoiningRoom => "Joining room…",
-            LoadingReason::LoadingRooms => "Loading your rooms…",
-            LoadingReason::SyncingRooms => "Syncing rooms…",
-            LoadingReason::Refreshing => "Fetching latest messages…",
+            LoadingReason::CreatingRoom => "Creating room…",
             LoadingReason::Sending => "Sending…",
+            LoadingReason::Saving => "Saving…",
         }
     }
 }
@@ -253,114 +322,159 @@ impl LoadingReason {
 /// component's memo.
 pub(crate) struct ActivityInputs<'a> {
     pub sync_status: &'a SynchronizerStatus,
+    /// Any pending invite still `PendingSubscription` or `Subscribing`: the
+    /// user accepted it and the room's data hasn't arrived yet.
+    pub joining: bool,
+    /// `NodeActivity::user_reason`: the user's highest-priority pending action.
+    pub user_action: Option<ActionKind>,
+}
+
+/// Whether the user is waiting on the node right now, and for what. `None`
+/// means they aren't.
+pub(crate) fn loading_reason(i: &ActivityInputs) -> Option<LoadingReason> {
+    // Only with a live socket: an action can't reach the node without one, and
+    // the pill explains a lost connection. This also keeps a `no-sync` build,
+    // which is `Disconnected` for good, quiet.
+    if !matches!(i.sync_status, SynchronizerStatus::Connected) {
+        return None;
+    }
+    if i.joining {
+        return Some(LoadingReason::JoiningRoom);
+    }
+    i.user_action.map(|kind| match kind {
+        ActionKind::CreatingRoom => LoadingReason::CreatingRoom,
+        ActionKind::Sending => LoadingReason::Sending,
+        ActionKind::Saving => LoadingReason::Saving,
+    })
+}
+
+/// Everything [`background_busy`] looks at, snapshotted from signals by the
+/// component's memo.
+pub(crate) struct BackgroundInputs<'a> {
+    pub sync_status: &'a SynchronizerStatus,
     /// False in a `no-sync` build, where `SYNC_STATUS` sits at `Disconnected`
     /// for good and must not read as "reconnecting".
     pub sync_enabled: bool,
     pub rooms_load_state: RoomsLoadState,
-    /// Any pending invite still `PendingSubscription` or `Subscribing`.
-    pub joining: bool,
     /// `SyncInfo::rooms_syncing_count` over the rooms in `ROOMS`.
     pub rooms_syncing: usize,
-    /// `InFlight::count(Fetch)`: tracked GETs awaiting their response.
-    pub fetches_in_flight: usize,
-    /// `InFlight::count(Send)`: tracked UPDATEs awaiting their response.
-    pub sends_in_flight: usize,
+    /// `NodeActivity::background_requests`: a request nobody is waiting on is
+    /// outstanding.
+    pub requests: bool,
 }
 
-/// Whether River is busy right now, and why. `None` means idle.
+/// Whether background work is happening right now.
 ///
 /// Every `SynchronizerStatus` variant is spelled out (no `_`), so a new variant
 /// is a compile error here rather than a silent "idle".
-pub(crate) fn loading_reason(i: &ActivityInputs) -> Option<LoadingReason> {
+pub(crate) fn background_busy(i: &BackgroundInputs) -> bool {
     match i.sync_status {
-        SynchronizerStatus::Connecting => Some(LoadingReason::Connecting),
+        SynchronizerStatus::Connecting => true,
         // In a sync build the only writer of `Disconnected` is the
-        // `ConnectionLost` handler, which always arms a reconnect first. A
-        // `no-sync` build starts and stays `Disconnected`.
-        SynchronizerStatus::Disconnected if i.sync_enabled => Some(LoadingReason::Reconnecting),
-        SynchronizerStatus::Disconnected => None,
+        // `ConnectionLost` handler, which always arms a reconnect first.
+        SynchronizerStatus::Disconnected => i.sync_enabled,
         // Sometimes a backoff reconnect is armed, sometimes it is terminal
-        // ("Please refresh the page"), and the status cannot tell which. The
-        // red pill explains it; the next attempt goes back to `Connecting`.
-        SynchronizerStatus::Error(_) => None,
-        // Everything below needs a live socket: nothing loads without one, and
-        // the example build's `ROOMS_LOAD_STATE` sits at `Loading` forever.
+        // ("Please refresh the page"); the red pill explains it, and the next
+        // attempt goes back to `Connecting`.
+        SynchronizerStatus::Error(_) => false,
         SynchronizerStatus::Connected => {
-            if i.joining {
-                Some(LoadingReason::JoiningRoom)
-            } else if matches!(
+            matches!(
                 i.rooms_load_state,
                 RoomsLoadState::Loading | RoomsLoadState::Migrating
-            ) {
-                Some(LoadingReason::LoadingRooms)
-            } else if i.rooms_syncing > 0 {
-                Some(LoadingReason::SyncingRooms)
-            } else if i.fetches_in_flight > 0 {
-                Some(LoadingReason::Refreshing)
-            } else if i.sends_in_flight > 0 {
-                Some(LoadingReason::Sending)
-            } else {
-                None
-            }
+            ) || i.rooms_syncing > 0
+                || i.requests
         }
     }
 }
 
-/// Loading must still be in progress this long after it started before the dots appear.
-/// Long enough that the wake refresh's fast round trips on a tab switch stay
-/// hidden.
-pub(crate) const SHOW_DEBOUNCE_MS: f64 = 500.0;
-/// Once shown, the dots stay at least this long. Shorter than the CSS wave
-/// period (`river-flow-wave 1.5s`), so a short load shows part of one ripple.
-pub(crate) const MIN_VISIBLE_MS: f64 = 1_000.0;
+/// How long an indicator waits before appearing, and how long it stays once
+/// it has.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) struct GateTiming {
+    pub show_after_ms: f64,
+    pub min_visible_ms: f64,
+}
+
+/// Primary: a user action must still be waiting 500 ms in, so quick replies
+/// never cause a blip; once shown, at least 1 s (shorter than the 1.5 s wave,
+/// so a short wait shows part of one ripple).
+pub(crate) const PRIMARY_TIMING: GateTiming = GateTiming {
+    show_after_ms: 500.0,
+    min_visible_ms: 1_000.0,
+};
+
+/// Secondary: at once, and at least 1 s, so even a quick refresh is visible.
+pub(crate) const SECONDARY_TIMING: GateTiming = GateTiming {
+    show_after_ms: 0.0,
+    min_visible_ms: 1_000.0,
+};
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub(crate) enum GatePhase {
     #[default]
     Idle,
-    /// Busy, not shown yet. Becomes `Shown` at `since + SHOW_DEBOUNCE_MS`.
+    /// Busy, not shown yet. Becomes `Shown` at `since + show_after_ms`.
     Pending { since: f64 },
     /// Busy and on screen since `shown_at`.
     Shown { shown_at: f64 },
-    /// No longer busy, held on screen until `shown_at + MIN_VISIBLE_MS`.
+    /// No longer busy, held on screen until `shown_at + min_visible_ms`.
     Holding { shown_at: f64 },
 }
 
-/// Whether the dots are on screen. CSS can delay an element appearing but not
-/// delay one being removed from the DOM, so the timing lives here. No signals
-/// and no clock: every call takes `now` in ms.
-#[derive(Clone, Copy, PartialEq, Debug, Default)]
-pub(crate) struct DisplayGate {
+/// Whether an indicator is on screen. CSS can delay an element appearing but
+/// not delay one being removed from the DOM, so the timing lives here. No
+/// signals and no clock: every call takes `now` in ms. `R` is what is shown
+/// (a reason, or `()` for the pill).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) struct DisplayGate<R> {
     phase: GatePhase,
     /// Latest non-None reason. Kept through `Holding` so `data-reason` and the
     /// screen-reader label don't blank out during the hold.
-    reason: Option<LoadingReason>,
+    reason: Option<R>,
+    timing: GateTiming,
 }
 
-impl DisplayGate {
-    /// The loading state changed. Returns the new gate, plus a delay in ms
-    /// after which `on_tick` must run, if this transition armed a deadline.
-    pub(crate) fn on_reason(self, reason: Option<LoadingReason>, now: f64) -> (Self, Option<f64>) {
+impl<R: Copy + PartialEq> DisplayGate<R> {
+    pub(crate) const fn new(timing: GateTiming) -> Self {
+        Self {
+            phase: GatePhase::Idle,
+            reason: None,
+            timing,
+        }
+    }
+
+    fn idle(self) -> Self {
+        Self::new(self.timing)
+    }
+
+    /// The busy state changed. Returns the new gate, plus a delay in ms after
+    /// which `on_tick` must run, if this transition armed a deadline.
+    pub(crate) fn on_reason(self, reason: Option<R>, now: f64) -> (Self, Option<f64>) {
         let kept = reason.or(self.reason);
         let with = |phase| Self {
             phase,
             reason: kept,
+            timing: self.timing,
         };
         match (self.phase, reason) {
+            // No debounce: on screen at once.
+            (GatePhase::Idle, Some(_)) if self.timing.show_after_ms <= 0.0 => {
+                (with(GatePhase::Shown { shown_at: now }), None)
+            }
             (GatePhase::Idle, Some(_)) => (
                 with(GatePhase::Pending { since: now }),
-                Some(SHOW_DEBOUNCE_MS),
+                Some(self.timing.show_after_ms),
             ),
-            (GatePhase::Idle, None) => (Self::default(), None),
+            (GatePhase::Idle, None) => (self.idle(), None),
             // The debounce timer armed on entry still covers it.
             (GatePhase::Pending { since }, Some(_)) => (with(GatePhase::Pending { since }), None),
             // Finished inside the debounce: never shown.
-            (GatePhase::Pending { .. }, None) => (Self::default(), None),
+            (GatePhase::Pending { .. }, None) => (self.idle(), None),
             (GatePhase::Shown { shown_at }, Some(_)) => (with(GatePhase::Shown { shown_at }), None),
             (GatePhase::Shown { shown_at }, None) => {
-                let until = shown_at + MIN_VISIBLE_MS;
+                let until = shown_at + self.timing.min_visible_ms;
                 if now >= until {
-                    (Self::default(), None)
+                    (self.idle(), None)
                 } else {
                     (with(GatePhase::Holding { shown_at }), Some(until - now))
                 }
@@ -378,13 +492,15 @@ impl DisplayGate {
     /// changes nothing, so timers never need cancelling.
     pub(crate) fn on_tick(self, now: f64) -> Self {
         match self.phase {
-            // `now`, not `since + SHOW_DEBOUNCE_MS`: the minimum counts from
-            // when the dots could first be seen, even if the timer ran late.
-            GatePhase::Pending { since } if now >= since + SHOW_DEBOUNCE_MS => Self {
+            // `now`, not `since + show_after_ms`: the minimum counts from when
+            // the dots could first be seen, even if the timer ran late.
+            GatePhase::Pending { since } if now >= since + self.timing.show_after_ms => Self {
                 phase: GatePhase::Shown { shown_at: now },
                 ..self
             },
-            GatePhase::Holding { shown_at } if now >= shown_at + MIN_VISIBLE_MS => Self::default(),
+            GatePhase::Holding { shown_at } if now >= shown_at + self.timing.min_visible_ms => {
+                self.idle()
+            }
             GatePhase::Idle
             | GatePhase::Pending { .. }
             | GatePhase::Shown { .. }
@@ -398,14 +514,14 @@ impl DisplayGate {
     /// stuck in `Pending` or, worse, `Holding` forever.
     pub(crate) fn pending_deadline(&self) -> Option<f64> {
         match self.phase {
-            GatePhase::Pending { since } => Some(since + SHOW_DEBOUNCE_MS),
-            GatePhase::Holding { shown_at } => Some(shown_at + MIN_VISIBLE_MS),
+            GatePhase::Pending { since } => Some(since + self.timing.show_after_ms),
+            GatePhase::Holding { shown_at } => Some(shown_at + self.timing.min_visible_ms),
             GatePhase::Idle | GatePhase::Shown { .. } => None,
         }
     }
 
     /// What to render: `Some` only in `Shown` / `Holding`.
-    pub(crate) fn visible_reason(&self) -> Option<LoadingReason> {
+    pub(crate) fn visible_reason(&self) -> Option<R> {
         match self.phase {
             GatePhase::Shown { .. } | GatePhase::Holding { .. } => self.reason,
             GatePhase::Idle | GatePhase::Pending { .. } => None,
@@ -528,14 +644,11 @@ impl SplitMix64 {
 mod tests {
     use super::*;
 
-    const ALL_REASONS: [LoadingReason; 7] = [
-        LoadingReason::Connecting,
-        LoadingReason::Reconnecting,
+    const ALL_REASONS: [LoadingReason; 4] = [
         LoadingReason::JoiningRoom,
-        LoadingReason::LoadingRooms,
-        LoadingReason::SyncingRooms,
-        LoadingReason::Refreshing,
+        LoadingReason::CreatingRoom,
         LoadingReason::Sending,
+        LoadingReason::Saving,
     ];
 
     static CONNECTED: SynchronizerStatus = SynchronizerStatus::Connected;
@@ -543,25 +656,8 @@ mod tests {
     fn idle_connected() -> ActivityInputs<'static> {
         ActivityInputs {
             sync_status: &CONNECTED,
-            sync_enabled: true,
-            rooms_load_state: RoomsLoadState::Loaded,
             joining: false,
-            rooms_syncing: 0,
-            fetches_in_flight: 0,
-            sends_in_flight: 0,
-        }
-    }
-
-    /// Every input other than the connection status set to "busy".
-    fn all_busy(sync_status: &SynchronizerStatus, sync_enabled: bool) -> ActivityInputs<'_> {
-        ActivityInputs {
-            sync_status,
-            sync_enabled,
-            rooms_load_state: RoomsLoadState::Loading,
-            joining: true,
-            rooms_syncing: 3,
-            fetches_in_flight: 2,
-            sends_in_flight: 1,
+            user_action: None,
         }
     }
 
@@ -571,110 +667,47 @@ mod tests {
     }
 
     #[test]
-    fn connecting_wins_over_everything() {
-        let status = SynchronizerStatus::Connecting;
-        assert_eq!(
-            loading_reason(&all_busy(&status, true)),
-            Some(LoadingReason::Connecting)
-        );
-    }
-
-    /// A `no-sync` build is `Disconnected` for its whole life. Without the
-    /// `sync_enabled` input the dots would run forever there, including in
-    /// every Playwright run.
-    #[test]
-    fn disconnected_reconnects_only_when_sync_is_enabled() {
-        let status = SynchronizerStatus::Disconnected;
-        assert_eq!(
-            loading_reason(&all_busy(&status, true)),
-            Some(LoadingReason::Reconnecting)
-        );
-        assert_eq!(loading_reason(&all_busy(&status, false)), None);
-    }
-
-    /// `Error` can be terminal ("Please refresh the page"), and the red pill
-    /// already explains it, so it never shows the dots.
-    #[test]
-    fn error_shows_nothing() {
-        let status = SynchronizerStatus::Error("WebSocket connection failed".to_string());
-        assert_eq!(loading_reason(&all_busy(&status, true)), None);
+    fn each_user_action_has_its_reason() {
+        for (kind, reason) in [
+            (ActionKind::CreatingRoom, LoadingReason::CreatingRoom),
+            (ActionKind::Sending, LoadingReason::Sending),
+            (ActionKind::Saving, LoadingReason::Saving),
+        ] {
+            let i = ActivityInputs {
+                user_action: Some(kind),
+                ..idle_connected()
+            };
+            assert_eq!(loading_reason(&i), Some(reason), "{kind:?}");
+        }
     }
 
     #[test]
-    fn joining_beats_rooms_loading() {
+    fn joining_beats_other_actions() {
         let i = ActivityInputs {
             joining: true,
-            rooms_load_state: RoomsLoadState::Loading,
+            user_action: Some(ActionKind::Sending),
             ..idle_connected()
         };
         assert_eq!(loading_reason(&i), Some(LoadingReason::JoiningRoom));
     }
 
+    /// Connecting and reconnecting are background work: they never show the
+    /// primary dots, even with a user action pending. A `no-sync` build, which
+    /// is `Disconnected` for good, stays quiet too.
     #[test]
-    fn rooms_loading_and_migrating_both_count() {
-        for state in [RoomsLoadState::Loading, RoomsLoadState::Migrating] {
+    fn the_primary_needs_a_live_socket() {
+        for status in [
+            SynchronizerStatus::Connecting,
+            SynchronizerStatus::Disconnected,
+            SynchronizerStatus::Error("WebSocket connection failed".to_string()),
+        ] {
             let i = ActivityInputs {
-                rooms_load_state: state,
-                rooms_syncing: 1,
-                ..idle_connected()
+                sync_status: &status,
+                joining: true,
+                user_action: Some(ActionKind::Sending),
             };
-            assert_eq!(
-                loading_reason(&i),
-                Some(LoadingReason::LoadingRooms),
-                "{state:?}"
-            );
+            assert_eq!(loading_reason(&i), None, "{status:?}");
         }
-    }
-
-    /// `LoadFailed` has its own Retry button, so it is not "loading".
-    #[test]
-    fn load_failed_and_loaded_do_not_count() {
-        for state in [RoomsLoadState::LoadFailed, RoomsLoadState::Loaded] {
-            let i = ActivityInputs {
-                rooms_load_state: state,
-                ..idle_connected()
-            };
-            assert_eq!(loading_reason(&i), None, "{state:?}");
-        }
-    }
-
-    #[test]
-    fn syncing_rooms_when_loaded() {
-        let i = ActivityInputs {
-            rooms_syncing: 1,
-            fetches_in_flight: 1,
-            sends_in_flight: 1,
-            ..idle_connected()
-        };
-        assert_eq!(loading_reason(&i), Some(LoadingReason::SyncingRooms));
-    }
-
-    #[test]
-    fn fetch_then_send_priority() {
-        let both = ActivityInputs {
-            fetches_in_flight: 1,
-            sends_in_flight: 1,
-            ..idle_connected()
-        };
-        assert_eq!(loading_reason(&both), Some(LoadingReason::Refreshing));
-        let send_only = ActivityInputs {
-            sends_in_flight: 1,
-            ..idle_connected()
-        };
-        assert_eq!(loading_reason(&send_only), Some(LoadingReason::Sending));
-    }
-
-    /// Rows 4-8 are gated on `Connected`: the example build sits at
-    /// `ROOMS_LOAD_STATE == Loading` forever, and nothing loads while the
-    /// socket is down anyway.
-    #[test]
-    fn busy_inputs_are_ignored_unless_connected() {
-        let status = SynchronizerStatus::Disconnected;
-        let i = ActivityInputs {
-            sync_enabled: false,
-            ..all_busy(&status, false)
-        };
-        assert_eq!(loading_reason(&i), None);
     }
 
     #[test]
@@ -694,17 +727,91 @@ mod tests {
         }
     }
 
+    // ---- Background (pill) ----------------------------------------------
+
+    fn quiet(sync_status: &SynchronizerStatus, sync_enabled: bool) -> BackgroundInputs<'_> {
+        BackgroundInputs {
+            sync_status,
+            sync_enabled,
+            rooms_load_state: RoomsLoadState::Loaded,
+            rooms_syncing: 0,
+            requests: false,
+        }
+    }
+
+    #[test]
+    fn a_quiet_connected_client_is_not_busy() {
+        assert!(!background_busy(&quiet(&CONNECTED, true)));
+    }
+
+    #[test]
+    fn connecting_and_reconnecting_are_background_work() {
+        assert!(background_busy(&quiet(
+            &SynchronizerStatus::Connecting,
+            true
+        )));
+        assert!(background_busy(&quiet(
+            &SynchronizerStatus::Disconnected,
+            true
+        )));
+        assert!(
+            !background_busy(&quiet(&SynchronizerStatus::Disconnected, false)),
+            "a no-sync build is Disconnected for good"
+        );
+        let error = SynchronizerStatus::Error("x".to_string());
+        assert!(
+            !background_busy(&quiet(&error, true)),
+            "the red pill explains it"
+        );
+    }
+
+    #[test]
+    fn each_background_input_counts_while_connected() {
+        for state in [RoomsLoadState::Loading, RoomsLoadState::Migrating] {
+            let i = BackgroundInputs {
+                rooms_load_state: state,
+                ..quiet(&CONNECTED, true)
+            };
+            assert!(background_busy(&i), "{state:?}");
+        }
+        for state in [RoomsLoadState::LoadFailed, RoomsLoadState::Loaded] {
+            let i = BackgroundInputs {
+                rooms_load_state: state,
+                ..quiet(&CONNECTED, true)
+            };
+            assert!(!background_busy(&i), "{state:?}");
+        }
+        let syncing = BackgroundInputs {
+            rooms_syncing: 2,
+            ..quiet(&CONNECTED, true)
+        };
+        assert!(background_busy(&syncing));
+        let requests = BackgroundInputs {
+            requests: true,
+            ..quiet(&CONNECTED, true)
+        };
+        assert!(background_busy(&requests));
+    }
+
     // ---- DisplayGate ----------------------------------------------------
 
-    const C: Option<LoadingReason> = Some(LoadingReason::Connecting);
+    const C: Option<LoadingReason> = Some(LoadingReason::Sending);
 
-    fn gate(phase: GatePhase) -> DisplayGate {
-        DisplayGate { phase, reason: C }
+    fn primary() -> DisplayGate<LoadingReason> {
+        DisplayGate::new(PRIMARY_TIMING)
+    }
+
+    fn gate(phase: GatePhase) -> DisplayGate<LoadingReason> {
+        DisplayGate {
+            phase,
+            reason: C,
+            timing: PRIMARY_TIMING,
+        }
     }
 
     #[test]
     fn a_load_shorter_than_the_debounce_never_shows() {
-        let (g, wake) = DisplayGate::default().on_reason(C, 0.0);
+        let (g, wake) = primary().on_reason(C, 0.0);
         assert_eq!(g.phase, GatePhase::Pending { since: 0.0 });
         assert_eq!(wake, Some(500.0));
         assert_eq!(g.visible_reason(), None);
@@ -725,7 +832,7 @@ mod tests {
 
     #[test]
     fn shows_once_the_debounce_elapses() {
-        let (g, _) = DisplayGate::default().on_reason(C, 0.0);
+        let (g, _) = primary().on_reason(C, 0.0);
         let g = g.on_tick(500.0);
         assert_eq!(g.phase, GatePhase::Shown { shown_at: 500.0 });
         assert_eq!(g.visible_reason(), C);
@@ -756,7 +863,7 @@ mod tests {
             gate(GatePhase::Holding { shown_at: 500.0 }).pending_deadline(),
             Some(1500.0)
         );
-        assert_eq!(DisplayGate::default().pending_deadline(), None);
+        assert_eq!(primary().pending_deadline(), None);
         assert_eq!(
             gate(GatePhase::Shown { shown_at: 500.0 }).pending_deadline(),
             None
@@ -809,7 +916,7 @@ mod tests {
 
     #[test]
     fn a_cancelled_pending_restarts_the_debounce() {
-        let (g, _) = DisplayGate::default().on_reason(C, 0.0);
+        let (g, _) = primary().on_reason(C, 0.0);
         let (g, _) = g.on_reason(None, 100.0);
         let (g, wake) = g.on_reason(C, 150.0);
         assert_eq!(g.phase, GatePhase::Pending { since: 150.0 });
@@ -828,27 +935,27 @@ mod tests {
     #[test]
     fn reason_updates_while_shown() {
         let (g, wake) = gate(GatePhase::Shown { shown_at: 500.0 })
-            .on_reason(Some(LoadingReason::SyncingRooms), 700.0);
+            .on_reason(Some(LoadingReason::Saving), 700.0);
         assert_eq!(g.phase, GatePhase::Shown { shown_at: 500.0 });
         assert_eq!(wake, None);
-        assert_eq!(g.visible_reason(), Some(LoadingReason::SyncingRooms));
+        assert_eq!(g.visible_reason(), Some(LoadingReason::Saving));
     }
 
     #[test]
     fn reason_updates_while_pending_without_rearming() {
-        let (g, _) = DisplayGate::default().on_reason(C, 0.0);
-        let (g, wake) = g.on_reason(Some(LoadingReason::LoadingRooms), 50.0);
+        let (g, _) = primary().on_reason(C, 0.0);
+        let (g, wake) = g.on_reason(Some(LoadingReason::JoiningRoom), 50.0);
         assert_eq!(g.phase, GatePhase::Pending { since: 0.0 });
         assert_eq!(wake, None, "the original debounce timer still covers it");
         assert_eq!(
             g.on_tick(500.0).visible_reason(),
-            Some(LoadingReason::LoadingRooms)
+            Some(LoadingReason::JoiningRoom)
         );
     }
 
     #[test]
     fn ticks_in_idle_and_shown_are_noops() {
-        let idle = DisplayGate::default();
+        let idle = primary();
         assert_eq!(idle.on_tick(10_000.0), idle);
         let shown = gate(GatePhase::Shown { shown_at: 500.0 });
         assert_eq!(shown.on_tick(10_000.0), shown);
@@ -856,14 +963,14 @@ mod tests {
 
     #[test]
     fn idle_to_idle_arms_nothing() {
-        let (g, wake) = DisplayGate::default().on_reason(None, 0.0);
-        assert_eq!(g, DisplayGate::default());
+        let (g, wake) = primary().on_reason(None, 0.0);
+        assert_eq!(g, primary());
         assert_eq!(wake, None);
     }
 
     #[test]
     fn shown_at_is_set_only_while_on_screen_and_survives_the_hold() {
-        assert_eq!(DisplayGate::default().shown_at(), None);
+        assert_eq!(primary().shown_at(), None);
         assert_eq!(gate(GatePhase::Pending { since: 0.0 }).shown_at(), None);
         let shown = gate(GatePhase::Shown { shown_at: 500.0 });
         assert_eq!(shown.shown_at(), Some(500.0));
@@ -875,6 +982,23 @@ mod tests {
             Some(500.0),
             "the seed must not change mid-show"
         );
+    }
+
+    /// The pill's gate has no debounce: busy is on screen the same instant,
+    /// and still held for the 1 s minimum.
+    #[test]
+    fn the_secondary_gate_shows_at_once_and_holds_a_second() {
+        let g = DisplayGate::<()>::new(SECONDARY_TIMING);
+        let (g, wake) = g.on_reason(Some(()), 100.0);
+        assert_eq!(g.phase, GatePhase::Shown { shown_at: 100.0 });
+        assert_eq!(wake, None, "nothing to wait for");
+        assert_eq!(g.visible_reason(), Some(()));
+
+        let (g, wake) = g.on_reason(None, 150.0);
+        assert_eq!(g.phase, GatePhase::Holding { shown_at: 100.0 });
+        assert_eq!(wake, Some(950.0));
+        assert_eq!(g.on_tick(1_099.0).visible_reason(), Some(()));
+        assert_eq!(g.on_tick(1_100.0).visible_reason(), None);
     }
 
     // ---- Wave motion ----------------------------------------------------
@@ -998,10 +1122,12 @@ mod tests {
         }
     }
 
-    /// Product requirements: changing either should be a conscious edit here too.
+    /// Product requirements: changing any should be a conscious edit here too.
     #[test]
     fn timing_constants_are_as_specified() {
-        assert_eq!(SHOW_DEBOUNCE_MS, 500.0);
-        assert_eq!(MIN_VISIBLE_MS, 1000.0);
+        assert_eq!(PRIMARY_TIMING.show_after_ms, 500.0);
+        assert_eq!(PRIMARY_TIMING.min_visible_ms, 1000.0);
+        assert_eq!(SECONDARY_TIMING.show_after_ms, 0.0);
+        assert_eq!(SECONDARY_TIMING.min_visible_ms, 1000.0);
     }
 }
