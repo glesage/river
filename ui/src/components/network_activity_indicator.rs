@@ -11,6 +11,7 @@
 
 use crate::components::app::chat_delegate::{RoomsLoadState, ROOMS_LOAD_STATE};
 use crate::components::app::freenet_api::freenet_synchronizer::SynchronizerStatus;
+use crate::components::app::network_activity::{ActivityKind, IN_FLIGHT};
 use crate::components::app::sync_info::{now_ms, SYNC_INFO};
 use crate::components::app::{PENDING_INVITES, ROOMS, SYNC_STATUS};
 use dioxus::prelude::*;
@@ -63,14 +64,21 @@ pub fn NetworkActivityIndicator() -> Element {
             };
             sync_info.rooms_syncing_count(|k| rooms.map.contains_key(k))
         };
+        let (fetches_in_flight, sends_in_flight) = match IN_FLIGHT.try_read() {
+            Ok(f) => (f.count(ActivityKind::Fetch), f.count(ActivityKind::Send)),
+            Err(_) => {
+                crate::util::signal_guard::schedule_nudge();
+                (0, 0)
+            }
+        };
         loading_reason(&ActivityInputs {
             sync_status: &status,
             sync_enabled: !cfg!(feature = "no-sync"),
             rooms_load_state,
             joining,
             rooms_syncing,
-            fetches_in_flight: 0,
-            sends_in_flight: 0,
+            fetches_in_flight,
+            sends_in_flight,
         })
     });
 
@@ -214,7 +222,9 @@ pub(crate) struct ActivityInputs<'a> {
     pub joining: bool,
     /// `SyncInfo::rooms_syncing_count` over the rooms in `ROOMS`.
     pub rooms_syncing: usize,
+    /// `InFlight::count(Fetch)`: tracked GETs awaiting their response.
     pub fetches_in_flight: usize,
+    /// `InFlight::count(Send)`: tracked UPDATEs awaiting their response.
     pub sends_in_flight: usize,
 }
 

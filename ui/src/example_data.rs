@@ -1506,6 +1506,55 @@ pub fn install_test_hooks() {
     );
     set_sync_status.forget();
 
+    // Drive the in-flight GET/UPDATE tracker behind the indicator's
+    // `refreshing` / `sending` states. These go through the real
+    // `network_activity::begin`/`end`, so the defer and the expiry timer are
+    // exercised too; only the request itself is missing. One fixed contract
+    // id, so a begin/end pair always settles the same entry.
+    fn parse_activity_kind(
+        kind: &str,
+    ) -> Option<crate::components::app::network_activity::ActivityKind> {
+        use crate::components::app::network_activity::ActivityKind;
+        match kind {
+            "fetch" => Some(ActivityKind::Fetch),
+            "send" => Some(ActivityKind::Send),
+            other => {
+                crate::util::debug_log(&format!("[test] unknown activity kind {other:?}"));
+                None
+            }
+        }
+    }
+    const TEST_ACTIVITY_ID: [u8; 32] = [0xA5; 32];
+    let begin_activity = Closure::wrap(Box::new(move |kind: String| {
+        if let Some(kind) = parse_activity_kind(&kind) {
+            crate::components::app::network_activity::begin(
+                kind,
+                ContractInstanceId::new(TEST_ACTIVITY_ID),
+            );
+        }
+    }) as Box<dyn FnMut(String)>);
+    let _ = js_sys::Reflect::set(
+        &hooks,
+        &JsValue::from_str("beginActivity"),
+        begin_activity.as_ref(),
+    );
+    begin_activity.forget();
+
+    let end_activity = Closure::wrap(Box::new(move |kind: String| {
+        if let Some(kind) = parse_activity_kind(&kind) {
+            crate::components::app::network_activity::end(
+                kind,
+                ContractInstanceId::new(TEST_ACTIVITY_ID),
+            );
+        }
+    }) as Box<dyn FnMut(String)>);
+    let _ = js_sys::Reflect::set(
+        &hooks,
+        &JsValue::from_str("endActivity"),
+        end_activity.as_ref(),
+    );
+    end_activity.forget();
+
     let _ = js_sys::Reflect::set(&window, &JsValue::from_str("__riverTest"), &hooks);
 }
 

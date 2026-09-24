@@ -59,6 +59,18 @@ async function setLoadState(page: Page, state: string) {
   }, state);
 }
 
+async function beginActivity(page: Page, kind: "fetch" | "send") {
+  await page.evaluate((k) => {
+    (window as any).__riverTest.beginActivity(k);
+  }, kind);
+}
+
+async function endActivity(page: Page, kind: "fetch" | "send") {
+  await page.evaluate((k) => {
+    (window as any).__riverTest.endActivity(k);
+  }, kind);
+}
+
 // Wait until the gate is Idle, not merely "no dots in the DOM": a count-0
 // check alone can pass while a debounce is still pending and the dots are
 // about to appear. Past the debounce, a pending show has either mounted (and
@@ -494,6 +506,68 @@ for (const { label, viewport, isMobile } of [
 
       await setLoadState(page, "loaded");
       await expect(indicator).toHaveCount(0, { timeout: 3_000 });
+    });
+  });
+
+  test.describe(`Phase 2: in-flight tracker (${label})`, () => {
+    test.use({ viewport });
+
+    test('beginActivity("fetch") shows refreshing, and ending it hides the dots after the hold', async ({
+      page,
+    }) => {
+      await page.goto("/");
+      await waitForApp(page);
+      await setSyncStatus(page, "connected");
+      await setLoadState(page, "loaded");
+      await settleIdle(page);
+
+      await beginActivity(page, "fetch");
+      const indicator = page.getByTestId(INDICATOR_TESTID);
+      await expect(indicator).toBeVisible();
+      await expect(indicator).toHaveAttribute("data-reason", "refreshing");
+
+      await endActivity(page, "fetch");
+      await expect(indicator).toHaveCount(0, { timeout: 3_000 });
+    });
+
+    test('beginActivity("send") shows sending, and ending it hides the dots after the hold', async ({
+      page,
+    }) => {
+      await page.goto("/");
+      await waitForApp(page);
+      await setSyncStatus(page, "connected");
+      await setLoadState(page, "loaded");
+      await settleIdle(page);
+
+      await beginActivity(page, "send");
+      const indicator = page.getByTestId(INDICATOR_TESTID);
+      await expect(indicator).toBeVisible();
+      await expect(indicator).toHaveAttribute("data-reason", "sending");
+
+      await endActivity(page, "send");
+      await expect(indicator).toHaveCount(0, { timeout: 3_000 });
+    });
+
+    test("a send faster than 200ms shows nothing", async ({ page }) => {
+      // The everyday case the debounce exists for: most sends round-trip
+      // well under 200ms, so they must never cause a visible blip.
+      await page.goto("/");
+      await waitForApp(page);
+      await setSyncStatus(page, "connected");
+      await setLoadState(page, "loaded");
+      await settleIdle(page);
+
+      const readLog = await recordPresence(page);
+      await page.evaluate(() => {
+        const w = window as any;
+        w.__riverTest.beginActivity("send");
+        setTimeout(() => w.__riverTest.endActivity("send"), 100);
+      });
+
+      await page.waitForTimeout(2_000);
+
+      const log = await readLog();
+      expect(log.some((e) => e.present)).toBe(false);
     });
   });
 }
