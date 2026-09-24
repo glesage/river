@@ -231,3 +231,60 @@
         padding-right: 3.5rem;
     }
 }
+
+/* Network activity indicator (network_activity_indicator.rs): ten accent-blue
+ * dots riding one travelling sine wave. Pure CSS: every dot runs the same
+ * keyframes, phase-shifted by its --i. WHEN it is mounted (200ms debounce,
+ * 1.5s minimum) is decided in Rust by `DisplayGate`, not here. Keep the
+ * 1.5s wave period equal to `MIN_VISIBLE_MS`. */
+.river-flow {
+    position: fixed;
+    left: 50%;
+    bottom: max(2px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 10px;
+    pointer-events: none;
+    /* No delay here: the 200ms debounce already happened before mount. This
+     * only softens the pop-in. */
+    animation: river-flow-in 150ms ease-out;
+}
+
+.river-flow-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 9999px;
+    background-color: var(--color-accent, #0265e7);
+    animation: river-flow-wave 1.5s ease-in-out infinite;
+    /* Dot i trails dot i-1 by a tenth of the period: exactly one wavelength
+     * across the row, crest travelling left to right. Negative, so the wave is
+     * already formed on the first frame instead of the dots starting one by
+     * one. */
+    animation-delay: calc((var(--i) - 10) * 0.15s);
+}
+
+@keyframes river-flow-in {
+    from { opacity: 0; }
+}
+
+@keyframes river-flow-wave {
+    0%, 100% { transform: translateY(2px) scale(0.6); opacity: 0.35; }
+    50%      { transform: translateY(-2px) scale(1);  opacity: 1; }
+}
+
+/* No travel for reduced motion: the same phase-shifted timing, opacity only,
+ * so it still reads as activity without anything moving. */
+@media (prefers-reduced-motion: reduce) {
+    .river-flow-dot {
+        animation-name: river-flow-shimmer;
+        animation-duration: 3s;
+    }
+}
+
+@keyframes river-flow-shimmer {
+    0%, 100% { opacity: 0.35; }
+    50%      { opacity: 1; }
+}

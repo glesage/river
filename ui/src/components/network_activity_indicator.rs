@@ -556,4 +556,16 @@ mod tests {
         assert_eq!(SHOW_DEBOUNCE_MS, 200.0);
         assert_eq!(MIN_VISIBLE_MS, 1500.0);
     }
+
+    /// The minimum is "one full ripple". If either side changes, that
+    /// rationale has to be revisited, not just one number.
+    #[test]
+    fn min_visible_matches_the_css_wave_period() {
+        let css = include_str!("../../assets/main.css");
+        assert!(
+            css.contains("river-flow-wave 1.5s"),
+            "main.css no longer runs river-flow-wave over 1.5s"
+        );
+        assert_eq!(MIN_VISIBLE_MS, 1500.0);
+    }
 }
