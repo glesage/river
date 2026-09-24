@@ -379,10 +379,10 @@ for (const { label, viewport, isMobile } of [
       expect(box).toBeTruthy();
       expect(composerBox).toBeTruthy();
 
-      // Above the composer's top edge, and close to it.
+      // 12px above the composer's top edge.
       const gap = composerBox!.y - (box!.y + box!.height);
-      expect(gap).toBeGreaterThanOrEqual(0);
-      expect(gap).toBeLessThanOrEqual(12);
+      expect(gap).toBeGreaterThanOrEqual(11);
+      expect(gap).toBeLessThanOrEqual(13);
 
       // Centred on the chat column the composer spans.
       const centre = box!.x + box!.width / 2;
@@ -407,58 +407,91 @@ for (const { label, viewport, isMobile } of [
       await expect(indicator).toBeVisible();
 
       // The spacer opens (it eases over 150ms) ...
-      await expect.poll(spacerHeight).toBeGreaterThanOrEqual(15);
+      await expect.poll(spacerHeight).toBeGreaterThanOrEqual(20);
 
       // ... and the reader, pinned to the bottom when the room opened, stays
-      // pinned: the last message (which ends where the spacer starts) sits
-      // above the dots instead of under them.
-      await expect
-        .poll(async () => {
-          const [lastMessageBottom, dotsTop] = await Promise.all([
-            spacer.evaluate((el) => el.getBoundingClientRect().top),
-            indicator.evaluate((el) => el.getBoundingClientRect().top),
-          ]);
-          return dotsTop - lastMessageBottom;
-        })
-        .toBeGreaterThanOrEqual(8);
+      // pinned, with the same 12px between the last message (which ends where
+      // the spacer starts) and the dots as between the dots and the composer.
+      const clearance = async () => {
+        const [lastMessageBottom, dotsTop] = await Promise.all([
+          spacer.evaluate((el) => el.getBoundingClientRect().top),
+          indicator.evaluate((el) => el.getBoundingClientRect().top),
+        ]);
+        return dotsTop - lastMessageBottom;
+      };
+      await expect.poll(clearance).toBeGreaterThanOrEqual(11);
+      expect(await clearance()).toBeLessThanOrEqual(13.5);
 
       await setSyncStatus(page, "disconnected");
       await expect(indicator).toHaveCount(0, { timeout: 3_000 });
       await expect.poll(spacerHeight).toBe(0);
     });
 
-    test("dots are phase-shifted on one wave", async ({ page }) => {
+    test("dots ride one wave, each on its own curve", async ({ page }) => {
       await page.goto("/");
       await waitForApp(page);
       await setSyncStatus(page, "connecting");
       await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
       await expect(page.getByTestId(DOT_TESTID)).toHaveCount(10);
 
+      // Each dot runs two animations; the lists below are comma-separated in
+      // that order: the travelling wave, then the dot's own slower swell.
+      // Split on commas outside parentheses: a cubic-bezier has its own.
+      const split = (v: string) => v.split(/,(?![^(]*\))/).map((x) => x.trim());
       const styles = await page
         .getByTestId(DOT_TESTID)
         .evaluateAll((els) =>
           els.map((el) => {
             const cs = getComputedStyle(el as HTMLElement);
-            return { name: cs.animationName, delay: cs.animationDelay };
+            return {
+              name: cs.animationName,
+              delay: cs.animationDelay,
+              duration: cs.animationDuration,
+              timing: cs.animationTimingFunction,
+            };
           })
         );
-
       expect(styles).toHaveLength(10);
-      for (const s of styles) {
-        expect(s.name).toBe("river-flow-wave");
-      }
 
       const parseSeconds = (v: string) => {
         const n = parseFloat(v);
         return v.trim().endsWith("ms") ? n / 1000 : n;
       };
-      const delays = styles.map((s) => parseSeconds(s.delay));
+      const wave = styles.map((s) => ({
+        name: split(s.name)[0],
+        delay: parseSeconds(split(s.delay)[0]),
+        duration: parseSeconds(split(s.duration)[0]),
+        timing: split(s.timing)[0],
+      }));
+      const swell = styles.map((s) => ({
+        name: split(s.name)[1],
+        duration: parseSeconds(split(s.duration)[1]),
+      }));
 
-      // Strictly increasing across the row — if the `--i` wiring breaks and
-      // every dot shares one delay, this fails.
-      for (let i = 1; i < delays.length; i++) {
-        expect(delays[i]).toBeGreaterThan(delays[i - 1]);
+      // One wave: every dot on the same 1.5s period ...
+      for (const w of wave) {
+        expect(w.name).toBe("river-flow-wave");
+        expect(w.duration).toBeCloseTo(1.5, 5);
       }
+      // ... with the crest travelling strictly left to right. Fails if the
+      // `--i` wiring breaks and the dots move in unison, or if the random
+      // nudge ever grows enough to reorder them.
+      for (let i = 1; i < wave.length; i++) {
+        expect(wave[i].delay).toBeGreaterThan(wave[i - 1].delay);
+      }
+
+      // Randomised, but always curves: every dot eases along a cubic-bezier
+      // (never linear or stepped), and not all along the same one.
+      for (const w of wave) {
+        expect(w.timing).toMatch(/^cubic-bezier\(/);
+      }
+      expect(new Set(wave.map((w) => w.timing)).size).toBeGreaterThan(1);
+
+      // Each dot also swells on its own period, so the row never repeats.
+      for (const sw of swell) {
+        expect(sw.name).toBe("river-flow-swell");
+      }
+      expect(new Set(swell.map((sw) => sw.duration)).size).toBeGreaterThan(1);
     });
 
     test("does not intercept taps", async ({ page }) => {

@@ -2249,7 +2249,7 @@ fn NoRoomFooter() -> Element {
         }
         // Network activity dots, in the flow. The slot keeps its height when
         // they are hidden, so nothing below jumps when they appear.
-        div { class: "mt-6 h-2.5 flex items-center justify-center",
+        div { class: "mt-6 h-3.5 flex items-center justify-center",
             network_activity_indicator::NetworkActivityDots { docked: false }
         }
         div { class: "mt-8 md:hidden",
