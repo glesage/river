@@ -240,6 +240,23 @@ impl SyncInfo {
         self.map.get(owner_key).map(|info| &info.sync_status)
     }
 
+    /// Rooms actively (re)syncing, for the network activity indicator: status
+    /// `Disconnected`/`Subscribing`, still present in `ROOMS` (`is_live`), and
+    /// under the retry bound — a room with synced state retries forever by
+    /// design, and the dots must not.
+    pub fn rooms_syncing_count(&self, is_live: impl Fn(&VerifyingKey) -> bool) -> usize {
+        self.map
+            .iter()
+            .filter(|(k, i)| {
+                matches!(
+                    i.sync_status,
+                    RoomSyncStatus::Disconnected | RoomSyncStatus::Subscribing
+                ) && i.failed_sync_attempts < MAX_SYNC_ATTEMPTS_BEFORE_ERROR
+                    && is_live(k)
+            })
+            .count()
+    }
+
     pub fn get_owner_vk_for_instance_id(
         &self,
         instance_id: &ContractInstanceId,
@@ -699,5 +716,58 @@ mod tests {
         let owner = test_owner(11);
         assert!(!si.record_failed_sync_attempt(&owner, true));
         assert!(si.get_sync_status(&owner).is_none());
+    }
+
+    /// Only `Disconnected` and `Subscribing` rooms count as re-syncing for the
+    /// network activity indicator; `Subscribed` is done and `Error` is terminal.
+    #[test]
+    fn rooms_syncing_count_counts_disconnected_and_subscribing_live_rooms() {
+        let mut si = SyncInfo::new();
+        let statuses = [
+            RoomSyncStatus::Disconnected,
+            RoomSyncStatus::Subscribing,
+            RoomSyncStatus::Subscribed,
+            RoomSyncStatus::Error("x".to_string()),
+        ];
+        for (seed, status) in (1..=4).zip(statuses) {
+            let owner = test_owner(seed);
+            si.register_new_room(owner);
+            si.update_sync_status(&owner, status);
+        }
+        assert_eq!(si.rooms_syncing_count(|_| true), 2);
+    }
+
+    /// A removed room's `SYNC_INFO` entry is never swept, and the timeout scan
+    /// only walks `ROOMS`, so a stale entry must not keep the dots running.
+    #[test]
+    fn rooms_syncing_count_ignores_rooms_no_longer_in_rooms() {
+        let mut si = SyncInfo::new();
+        let owner = test_owner(5);
+        si.register_new_room(owner);
+        si.update_sync_status(&owner, RoomSyncStatus::Subscribing);
+        assert_eq!(si.rooms_syncing_count(|_| false), 0);
+    }
+
+    /// A room with synced state retries forever and stays `Disconnected`
+    /// (`record_failed_sync_attempt_never_errors_a_synced_room`), so the count
+    /// must stop at the same bound the initial-sync path uses.
+    #[test]
+    fn rooms_syncing_count_stops_counting_after_the_retry_bound() {
+        let mut si = SyncInfo::new();
+        let owner = test_owner(6);
+        si.register_new_room(owner);
+
+        for _ in 1..MAX_SYNC_ATTEMPTS_BEFORE_ERROR {
+            si.record_failed_sync_attempt(&owner, false);
+        }
+        assert_eq!(si.rooms_syncing_count(|_| true), 1);
+
+        si.record_failed_sync_attempt(&owner, false);
+        assert_eq!(
+            si.map.get(&owner).unwrap().sync_status,
+            RoomSyncStatus::Disconnected,
+            "premise: a synced room stays Disconnected past the bound"
+        );
+        assert_eq!(si.rooms_syncing_count(|_| true), 0);
     }
 }
