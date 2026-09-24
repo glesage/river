@@ -7,6 +7,7 @@ use super::room_synchronizer::RoomSynchronizer;
 use crate::components::app::chat_delegate::{
     request_legacy_seal_on_quiescence, reset_ensure_subscription_dedup, set_up_chat_delegate,
 };
+use crate::components::app::network_activity;
 use crate::components::app::sync_info::SYNC_INFO;
 use crate::components::app::{ROOMS, SYNC_STATUS, WEB_API};
 use crate::util::{owner_vk_to_contract_key, safe_spawn_local, sleep};
@@ -363,6 +364,12 @@ impl FreenetSynchronizer {
                             Some(armed) => {
                                 // Clear the web API so is_connected() returns false
                                 WEB_API.write().take();
+                                // Network activity indicator (Phase 2): a
+                                // response tracked against this now-dead
+                                // socket will never arrive, so drop every
+                                // in-flight entry rather than waiting out
+                                // the 20s expiry.
+                                network_activity::clear_all();
                                 *SYNC_STATUS.write() = SynchronizerStatus::Disconnected;
                                 warn!(
                                     "Connection lost (attempt {}), reconnecting in {}ms",
@@ -527,6 +534,11 @@ impl FreenetSynchronizer {
                         {
                             Ok(()) => {
                                 info!("Connection established successfully");
+                                // Network activity indicator (Phase 2): any
+                                // in-flight entry was tracked against the
+                                // PREVIOUS socket and will never get a
+                                // response on this new one.
+                                network_activity::clear_all();
                                 // Do NOT reset the backoff on mere socket-open — an
                                 // open-then-die socket would reset it every cycle,
                                 // defeating the exponential backoff. Instead arm a
