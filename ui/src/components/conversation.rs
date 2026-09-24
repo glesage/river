@@ -3351,6 +3351,10 @@ pub fn Conversation() -> Element {
                                 }
                             });
                             if reaction_applied {
+                                crate::components::app::node_activity::await_room_update(
+                                    current_room,
+                                    crate::components::app::node_activity::ActionKind::Sending,
+                                );
                                 crate::components::app::mark_needs_sync(current_room);
                             }
                         });
@@ -3461,6 +3465,10 @@ pub fn Conversation() -> Element {
                             }
                         });
                         if delete_applied {
+                            crate::components::app::node_activity::await_room_update(
+                                current_room,
+                                crate::components::app::node_activity::ActionKind::Sending,
+                            );
                             crate::components::app::mark_needs_sync(current_room);
                         }
                     });
@@ -3596,6 +3604,10 @@ pub fn Conversation() -> Element {
                             }
                         });
                         if edit_applied {
+                            crate::components::app::node_activity::await_room_update(
+                                current_room,
+                                crate::components::app::node_activity::ActionKind::Sending,
+                            );
                             crate::components::app::mark_needs_sync(current_room);
                         }
                     });
@@ -3842,6 +3854,10 @@ pub fn Conversation() -> Element {
                             if CURRENT_ROOM.peek().owner_key == Some(current_room) {
                                 force_scroll.set(true);
                             }
+                            crate::components::app::node_activity::await_room_update(
+                                current_room,
+                                crate::components::app::node_activity::ActionKind::Sending,
+                            );
                             crate::util::debug_log("[send] marking NEEDS_SYNC");
                             crate::components::app::mark_needs_sync(current_room);
                             #[cfg(target_arch = "wasm32")]

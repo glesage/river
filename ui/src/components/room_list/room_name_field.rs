@@ -135,6 +135,13 @@ pub fn RoomNameField(config: Configuration, is_owner: bool) -> Element {
             new_config.configuration_version += 1;
 
             spawn_local(async move {
+                // The user waits on the node from here: the delegate's
+                // signature, then the UPDATE. Moved into the deferred apply
+                // below, so it ends only once the UPDATE wait has taken over.
+                let busy = crate::components::app::node_activity::busy(
+                    crate::components::app::node_activity::ActionKind::Saving,
+                );
+
                 // Serialize config to CBOR for signing
                 let mut config_bytes = Vec::new();
                 if let Err(e) = ciborium::ser::into_writer(&new_config, &mut config_bytes) {
@@ -158,6 +165,7 @@ pub fn RoomNameField(config: Configuration, is_owner: bool) -> Element {
                 // Defer ROOMS mutation to a clean execution context to
                 // prevent RefCell re-entrant borrow panics.
                 crate::util::defer(move || {
+                    let _busy = busy;
                     let applied = ROOMS.with_mut(|rooms| {
                         if let Some(room_data) = rooms.map.get_mut(&owner_key) {
                             info!("Applying delta to room state");
@@ -186,6 +194,10 @@ pub fn RoomNameField(config: Configuration, is_owner: bool) -> Element {
                         }
                     });
                     if applied {
+                        crate::components::app::node_activity::await_room_update(
+                            owner_key,
+                            crate::components::app::node_activity::ActionKind::Saving,
+                        );
                         crate::components::app::mark_needs_sync(owner_key);
                     }
                 });

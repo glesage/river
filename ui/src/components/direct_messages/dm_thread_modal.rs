@@ -694,6 +694,10 @@ fn DmThreadModalBody(room: VerifyingKey, peer: MemberId) -> Element {
                 match outcome {
                     ApplyOutcome::Applied => {
                         info!("DM appended locally; marking room for sync");
+                        crate::components::app::node_activity::await_room_update(
+                            room,
+                            crate::components::app::node_activity::ActionKind::Sending,
+                        );
                         mark_needs_sync(room);
                         // Bump the outbound-send counter so the
                         // auto-scroll effect notices the user just sent
@@ -856,6 +860,10 @@ fn DmThreadModalBody(room: VerifyingKey, peer: MemberId) -> Element {
                     }
                 });
                 if applied {
+                    crate::components::app::node_activity::await_room_update(
+                        room,
+                        crate::components::app::node_activity::ActionKind::Saving,
+                    );
                     mark_needs_sync(room);
                 } else {
                     send_error.set(Some(

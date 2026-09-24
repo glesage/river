@@ -264,7 +264,13 @@ pub fn NicknameField(member_info: AuthorizedMemberInfo) -> Element {
                 });
 
                 match outcome {
-                    SaveOutcome::Applied => crate::components::app::mark_needs_sync(owner_key),
+                    SaveOutcome::Applied => {
+                        crate::components::app::node_activity::await_room_update(
+                            owner_key,
+                            crate::components::app::node_activity::ActionKind::Saving,
+                        );
+                        crate::components::app::mark_needs_sync(owner_key);
+                    }
                     SaveOutcome::DeferredNoSecret => temp_nickname.set(initial_nickname_for_revert),
                     SaveOutcome::NotApplied => {}
                 }

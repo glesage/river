@@ -367,6 +367,10 @@ pub fn EditRoomModal() -> Element {
                                                                     }
                                                                 });
                                                                 if applied {
+                                                                    crate::components::app::node_activity::await_room_update(
+                                                                        owner_vk,
+                                                                        crate::components::app::node_activity::ActionKind::Saving,
+                                                                    );
                                                                     crate::components::app::mark_needs_sync(owner_vk);
                                                                 }
                                                             });
@@ -432,7 +436,12 @@ pub fn EditRoomModal() -> Element {
                                                     // to delegate storage.
                                                     info!("Room removed, saving to delegate");
                                                     spawn(async move {
-                                                        if let Err(e) = save_rooms_to_delegate().await {
+                                                        let saved = crate::components::app::node_activity::track(
+                                                            crate::components::app::node_activity::ActionKind::Saving,
+                                                            save_rooms_to_delegate(),
+                                                        )
+                                                        .await;
+                                                        if let Err(e) = saved {
                                                             error!("Failed to save rooms after removal: {}", e);
                                                         }
                                                     });
@@ -642,6 +651,12 @@ fn RoomDescriptionField(config: Configuration, is_owner: bool) -> Element {
         new_config.configuration_version += 1;
 
         spawn_local(async move {
+            // The user waits on the node from here: the delegate's
+            // signature, then the UPDATE. Moved into the deferred apply
+            // below, so it ends only once the UPDATE wait has taken over.
+            let busy = crate::components::app::node_activity::busy(
+                crate::components::app::node_activity::ActionKind::Saving,
+            );
             let mut config_bytes = Vec::new();
             if let Err(e) = ciborium::ser::into_writer(&new_config, &mut config_bytes) {
                 error!("Failed to serialize config for signing: {:?}", e);
@@ -662,6 +677,7 @@ fn RoomDescriptionField(config: Configuration, is_owner: bool) -> Element {
             // Defer ROOMS mutation to a clean execution context to
             // prevent RefCell re-entrant borrow panics.
             crate::util::defer(move || {
+                let _busy = busy;
                 let applied = ROOMS.with_mut(|rooms| {
                     if let Some(room_data) = rooms.map.get_mut(&owner_key) {
                         match ComposableState::apply_delta(
@@ -689,6 +705,10 @@ fn RoomDescriptionField(config: Configuration, is_owner: bool) -> Element {
                     }
                 });
                 if applied {
+                    crate::components::app::node_activity::await_room_update(
+                        owner_key,
+                        crate::components::app::node_activity::ActionKind::Saving,
+                    );
                     crate::components::app::mark_needs_sync(owner_key);
                 }
             });
@@ -826,6 +846,12 @@ fn NumericConfigField(
         new_config.configuration_version += 1;
 
         spawn_local(async move {
+            // The user waits on the node from here: the delegate's
+            // signature, then the UPDATE. Moved into the deferred apply
+            // below, so it ends only once the UPDATE wait has taken over.
+            let busy = crate::components::app::node_activity::busy(
+                crate::components::app::node_activity::ActionKind::Saving,
+            );
             let mut config_bytes = Vec::new();
             if let Err(e) = ciborium::ser::into_writer(&new_config, &mut config_bytes) {
                 error!("Failed to serialize config: {:?}", e);
@@ -846,6 +872,7 @@ fn NumericConfigField(
             // Defer ROOMS mutation to a clean execution context to
             // prevent RefCell re-entrant borrow panics.
             crate::util::defer(move || {
+                let _busy = busy;
                 let applied = ROOMS.with_mut(|rooms| {
                     if let Some(room_data) = rooms.map.get_mut(&owner_key) {
                         match ComposableState::apply_delta(
@@ -873,6 +900,10 @@ fn NumericConfigField(
                     }
                 });
                 if applied {
+                    crate::components::app::node_activity::await_room_update(
+                        owner_key,
+                        crate::components::app::node_activity::ActionKind::Saving,
+                    );
                     crate::components::app::mark_needs_sync(owner_key);
                 }
             });
@@ -951,6 +982,12 @@ fn MaxMembersField(
         new_config.configuration_version += 1;
 
         wasm_bindgen_futures::spawn_local(async move {
+            // The user waits on the node from here: the delegate's
+            // signature, then the UPDATE. Moved into the deferred apply
+            // below, so it ends only once the UPDATE wait has taken over.
+            let busy = crate::components::app::node_activity::busy(
+                crate::components::app::node_activity::ActionKind::Saving,
+            );
             let mut config_bytes = Vec::new();
             if let Err(e) = ciborium::ser::into_writer(&new_config, &mut config_bytes) {
                 error!("Failed to serialize config: {:?}", e);
@@ -971,6 +1008,7 @@ fn MaxMembersField(
             // Defer ROOMS mutation to a clean execution context to
             // prevent RefCell re-entrant borrow panics.
             crate::util::defer(move || {
+                let _busy = busy;
                 let applied = ROOMS.with_mut(|rooms| {
                     if let Some(room_data) = rooms.map.get_mut(&owner_key) {
                         match ComposableState::apply_delta(
@@ -998,6 +1036,10 @@ fn MaxMembersField(
                     }
                 });
                 if applied {
+                    crate::components::app::node_activity::await_room_update(
+                        owner_key,
+                        crate::components::app::node_activity::ActionKind::Saving,
+                    );
                     crate::components::app::mark_needs_sync(owner_key);
                 }
             });

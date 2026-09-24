@@ -92,6 +92,14 @@ pub fn BanButton(member_to_ban: MemberId, can_ban: bool, nickname: String) -> El
             });
 
             crate::util::safe_spawn_local(async move {
+                // The user waits on the node from here: the delegate's
+                // signature, then the UPDATE carrying the ban. Moved into the
+                // deferred apply below, so it ends only once the UPDATE wait
+                // has taken over.
+                let busy = crate::components::app::node_activity::busy(
+                    crate::components::app::node_activity::ActionKind::Saving,
+                );
+
                 // Serialize ban to CBOR for signing
                 let mut ban_bytes = Vec::new();
                 if let Err(e) = ciborium::ser::into_writer(&ban, &mut ban_bytes) {
@@ -113,6 +121,7 @@ pub fn BanButton(member_to_ban: MemberId, can_ban: bool, nickname: String) -> El
                 // Defer ROOMS mutation to a clean execution context to
                 // prevent RefCell re-entrant borrow panics.
                 crate::util::defer(move || {
+                    let _busy = busy;
                     ROOMS.with_mut(|rooms| {
                         if let Some(room_data_mut) = rooms.map.get_mut(&current_room) {
                             if let Err(e) = room_data_mut.room_state.apply_delta(
@@ -194,6 +203,10 @@ pub fn BanButton(member_to_ban: MemberId, can_ban: bool, nickname: String) -> El
                     });
 
                     // Mark room as needing sync to propagate ban and rotation
+                    crate::components::app::node_activity::await_room_update(
+                        current_room,
+                        crate::components::app::node_activity::ActionKind::Saving,
+                    );
                     crate::components::app::mark_needs_sync(current_room);
                     info!("Marked room for synchronization after ban");
                 });

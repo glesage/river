@@ -1564,7 +1564,10 @@ pub fn install_test_hooks() {
             &hooks,
             "awaitRoomUpdate",
             Closure::wrap(Box::new(move || {
-                node_activity::await_room_update(*test_key().id(), ActionKind::Sending);
+                node_activity::await_room_update(
+                    SigningKey::from_bytes(&[0xA5; 32]).verifying_key(),
+                    ActionKind::Sending,
+                );
             }) as Box<dyn FnMut()>),
         );
         expose(

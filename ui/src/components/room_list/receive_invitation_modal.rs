@@ -946,6 +946,10 @@ fn render_restore_access_option(
                                     );
                                 }
                             });
+                            crate::components::app::node_activity::await_room_update(
+                                room,
+                                crate::components::app::node_activity::ActionKind::Saving,
+                            );
                             crate::components::app::mark_needs_sync(room);
                         });
                         dismiss_invitation_persistently(&inv_for_dismiss, invitation);

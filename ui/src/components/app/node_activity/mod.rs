@@ -27,6 +27,7 @@ use crate::components::app::sync_info::now_ms;
 use actions::{ActionId, Actions};
 use dioxus::logger::tracing::warn;
 use dioxus::prelude::*;
+use ed25519_dalek::VerifyingKey;
 use freenet_stdlib::client_api::{ClientError, HostResponse};
 use freenet_stdlib::prelude::ContractInstanceId;
 use ledger::{Ledger, Settle, SlotId};
@@ -152,10 +153,14 @@ pub fn connection_reset() {
     });
 }
 
-/// The user changed a room; the change reaches the node in that room's next
-/// UPDATE. Call BEFORE `mark_needs_sync`, so the action is known before the
-/// sync that sends it can record its UPDATE.
-pub fn await_room_update(contract: ContractInstanceId, kind: ActionKind) {
+/// The user changed the room owned by `room_owner`; the change reaches the
+/// node in that room's next UPDATE. Call BEFORE `mark_needs_sync`, so the
+/// action is known before the sync that sends it can record its UPDATE.
+///
+/// The contract is derived exactly as `process_rooms` derives the UPDATE's
+/// key (`owner_vk_to_contract_key`), so the two always match.
+pub fn await_room_update(room_owner: VerifyingKey, kind: ActionKind) {
+    let contract = *crate::util::owner_vk_to_contract_key(&room_owner).id();
     let id = next_action_id();
     let now = now_ms();
     crate::util::defer(move || {
@@ -321,6 +326,78 @@ mod tests {
                 "on_reply must run before the first early return"
             );
         }
+    }
+
+    /// In the user-facing handlers, every `mark_needs_sync` (the hand-off of a
+    /// user's room change to the sync) is preceded, since the previous one, by
+    /// an `await_room_update` for it. Without it the user's change would
+    /// travel to the node with no primary indicator. Registering first is what
+    /// guarantees the action is known before its UPDATE is recorded.
+    #[test]
+    fn every_user_room_change_awaits_its_update() {
+        let files = [
+            ("conversation.rs", include_str!("../../conversation.rs")),
+            (
+                "nickname_field.rs",
+                include_str!("../../members/member_info_modal/nickname_field.rs"),
+            ),
+            (
+                "deputy_button.rs",
+                include_str!("../../members/member_info_modal/deputy_button.rs"),
+            ),
+            (
+                "ban_button.rs",
+                include_str!("../../members/member_info_modal/ban_button.rs"),
+            ),
+            (
+                "room_name_field.rs",
+                include_str!("../../room_list/room_name_field.rs"),
+            ),
+            (
+                "edit_room_modal.rs",
+                include_str!("../../room_list/edit_room_modal.rs"),
+            ),
+            (
+                "receive_invitation_modal.rs",
+                include_str!("../../room_list/receive_invitation_modal.rs"),
+            ),
+            (
+                "dm_thread_modal.rs",
+                include_str!("../../direct_messages/dm_thread_modal.rs"),
+            ),
+            (
+                "direct_messages.rs",
+                include_str!("../../direct_messages.rs"),
+            ),
+        ];
+        let mut checked = 0;
+        for (name, src) in files {
+            let src = strip_line_comments(production_only(src));
+            let marks: Vec<usize> = src
+                .match_indices("mark_needs_sync(")
+                .map(|(i, _)| i)
+                .collect();
+            assert!(
+                !marks.is_empty(),
+                "{name}: no mark_needs_sync found; is the pin stale?"
+            );
+            let mut previous = 0;
+            for mark in marks {
+                let window = &src[previous..mark];
+                assert!(
+                    window.contains("node_activity::await_room_update("),
+                    "{name}: a mark_needs_sync at byte {mark} has no \
+                     node_activity::await_room_update before it"
+                );
+                previous = mark + 1;
+                checked += 1;
+            }
+        }
+        assert_eq!(
+            checked, 16,
+            "expected exactly the 16 known user room changes; update this \
+             deliberately if you added or removed one"
+        );
     }
 
     /// The only way to talk to the node records the request.

@@ -527,6 +527,10 @@ pub async fn send_structured_dm(
         });
 
         if matches!(outcome, SendDmOutcome::Sent) {
+            crate::components::app::node_activity::await_room_update(
+                room,
+                crate::components::app::node_activity::ActionKind::Sending,
+            );
             mark_needs_sync(room);
             save_outbound_dm(
                 room,
