@@ -341,6 +341,36 @@ mod tests {
         );
     }
 
+    /// A GET for a contract the network does not have is answered with
+    /// `ContractResponse::NotFound { instance_id }`, not a `GetResponse`, so
+    /// `handle_get_response` never runs. That arm must settle the Fetch entry
+    /// itself, or a missing room's refresh shows `refreshing` until the 20s
+    /// expiry.
+    #[test]
+    fn not_found_ends_fetch() {
+        let src = strip_line_comments(production_only(include_str!(
+            "freenet_api/response_handler.rs"
+        )));
+        let start = src
+            .find("ContractResponse::NotFound")
+            .expect("response_handler.rs must match ContractResponse::NotFound explicitly");
+        let rest = &src[start + 1..];
+        // Delimit to the next arm so a call elsewhere can't satisfy the pin.
+        let end = [rest.find("ContractResponse::"), rest.find("_ =>")]
+            .into_iter()
+            .flatten()
+            .min()
+            .unwrap_or(rest.len());
+        let arm = &rest[..end];
+
+        assert!(
+            arm.contains("network_activity::end(ActivityKind::Fetch"),
+            "the ContractResponse::NotFound arm must call \
+             network_activity::end(ActivityKind::Fetch, ...), or a GET for a missing \
+             contract leaves the indicator on until the 20s expiry"
+        );
+    }
+
     /// The `ConnectionLost` arm must clear every in-flight entry — a response
     /// tracked against a socket that just died will never arrive.
     #[test]
