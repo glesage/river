@@ -89,6 +89,12 @@ impl InFlight {
 /// machinery already uses rather than a separate constant to keep in sync.
 pub const ACTIVITY_MAX_MS: f64 = 20_000.0;
 
+/// Extra wait on the expiry timer beyond `ACTIVITY_MAX_MS`. A timer can fire a
+/// millisecond early against `Date.now()`; without this, the sweep would find
+/// the entry it was armed for a hair younger than the max, keep it, and — if
+/// that was its only timer — leave the dots on for good.
+const EXPIRY_TIMER_SLACK_MS: u64 = 50;
+
 pub static IN_FLIGHT: GlobalSignal<InFlight> = Global::new(InFlight::default);
 
 /// Record a request as sent. Called from inside `RoomSynchronizer`'s polled
@@ -112,7 +118,10 @@ pub fn begin(kind: ActivityKind, id: ContractInstanceId) {
         IN_FLIGHT.with_mut(|f| f.begin(kind, id, started_at));
     });
     crate::util::safe_spawn_local(async move {
-        crate::util::sleep(Duration::from_millis(ACTIVITY_MAX_MS as u64)).await;
+        crate::util::sleep(Duration::from_millis(
+            ACTIVITY_MAX_MS as u64 + EXPIRY_TIMER_SLACK_MS,
+        ))
+        .await;
         crate::util::defer(move || {
             IN_FLIGHT.with_mut(|f| f.expire(now_ms(), ACTIVITY_MAX_MS));
         });
@@ -376,8 +385,9 @@ mod tests {
         // match arms for ConnectionStable/ProcessRooms/etc.), so delimiting
         // to "next SynchronizerMessage::" like the ConnectionLost pin above
         // would not isolate this call the same way.
-        let window_end = (start + 300).min(src.len());
-        let window = &src[start..window_end];
+        // By chars, not bytes: a byte offset can land inside a multi-byte
+        // character and panic the slice.
+        let window: String = src[start..].chars().take(300).collect();
 
         assert!(
             window.contains("network_activity::clear_all()"),
