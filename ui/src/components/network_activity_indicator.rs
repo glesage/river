@@ -108,6 +108,111 @@ pub(crate) fn loading_reason(i: &ActivityInputs) -> Option<LoadingReason> {
     }
 }
 
+/// Loading must still be in progress this long after it started before the dots appear.
+pub(crate) const SHOW_DEBOUNCE_MS: f64 = 200.0;
+/// Once shown, the dots stay at least this long. Equal to the CSS wave period
+/// (`river-flow-wave 1.5s`), so the minimum is one full ripple.
+pub(crate) const MIN_VISIBLE_MS: f64 = 1_500.0;
+
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub(crate) enum GatePhase {
+    #[default]
+    Idle,
+    /// Busy, not shown yet. Becomes `Shown` at `since + SHOW_DEBOUNCE_MS`.
+    Pending { since: f64 },
+    /// Busy and on screen since `shown_at`.
+    Shown { shown_at: f64 },
+    /// No longer busy, held on screen until `shown_at + MIN_VISIBLE_MS`.
+    Holding { shown_at: f64 },
+}
+
+/// Whether the dots are on screen. CSS can delay an element appearing but not
+/// delay one being removed from the DOM, so the timing lives here. No signals
+/// and no clock: every call takes `now` in ms.
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub(crate) struct DisplayGate {
+    phase: GatePhase,
+    /// Latest non-None reason. Kept through `Holding` so `data-reason` and the
+    /// screen-reader label don't blank out during the hold.
+    reason: Option<LoadingReason>,
+}
+
+impl DisplayGate {
+    /// The loading state changed. Returns the new gate, plus a delay in ms
+    /// after which `on_tick` must run, if this transition armed a deadline.
+    pub(crate) fn on_reason(self, reason: Option<LoadingReason>, now: f64) -> (Self, Option<f64>) {
+        let kept = reason.or(self.reason);
+        let with = |phase| Self {
+            phase,
+            reason: kept,
+        };
+        match (self.phase, reason) {
+            (GatePhase::Idle, Some(_)) => (
+                with(GatePhase::Pending { since: now }),
+                Some(SHOW_DEBOUNCE_MS),
+            ),
+            (GatePhase::Idle, None) => (Self::default(), None),
+            // The debounce timer armed on entry still covers it.
+            (GatePhase::Pending { since }, Some(_)) => (with(GatePhase::Pending { since }), None),
+            // Finished inside the debounce: never shown.
+            (GatePhase::Pending { .. }, None) => (Self::default(), None),
+            (GatePhase::Shown { shown_at }, Some(_)) => (with(GatePhase::Shown { shown_at }), None),
+            (GatePhase::Shown { shown_at }, None) => {
+                let until = shown_at + MIN_VISIBLE_MS;
+                if now >= until {
+                    (Self::default(), None)
+                } else {
+                    (with(GatePhase::Holding { shown_at }), Some(until - now))
+                }
+            }
+            // Busy again mid-hold: back on, with the ORIGINAL clock. The
+            // minimum is on total visible time, not per flicker.
+            (GatePhase::Holding { shown_at }, Some(_)) => {
+                (with(GatePhase::Shown { shown_at }), None)
+            }
+            (GatePhase::Holding { .. }, None) => (self, None),
+        }
+    }
+
+    /// A timer armed by `on_reason` fired. Idempotent: a stale or early timer
+    /// changes nothing, so timers never need cancelling.
+    pub(crate) fn on_tick(self, now: f64) -> Self {
+        match self.phase {
+            // `now`, not `since + SHOW_DEBOUNCE_MS`: the minimum counts from
+            // when the dots could first be seen, even if the timer ran late.
+            GatePhase::Pending { since } if now >= since + SHOW_DEBOUNCE_MS => Self {
+                phase: GatePhase::Shown { shown_at: now },
+                ..self
+            },
+            GatePhase::Holding { shown_at } if now >= shown_at + MIN_VISIBLE_MS => Self::default(),
+            GatePhase::Idle
+            | GatePhase::Pending { .. }
+            | GatePhase::Shown { .. }
+            | GatePhase::Holding { .. } => self,
+        }
+    }
+
+    /// The time at which the next `on_tick` would change something, if any.
+    /// A timer can fire a millisecond early against `Date.now()`; if it was the
+    /// only one armed, the caller re-arms from this instead of leaving the gate
+    /// stuck in `Pending` or, worse, `Holding` forever.
+    pub(crate) fn pending_deadline(&self) -> Option<f64> {
+        match self.phase {
+            GatePhase::Pending { since } => Some(since + SHOW_DEBOUNCE_MS),
+            GatePhase::Holding { shown_at } => Some(shown_at + MIN_VISIBLE_MS),
+            GatePhase::Idle | GatePhase::Shown { .. } => None,
+        }
+    }
+
+    /// What to render: `Some` only in `Shown` / `Holding`.
+    pub(crate) fn visible_reason(&self) -> Option<LoadingReason> {
+        match self.phase {
+            GatePhase::Shown { .. } | GatePhase::Holding { .. } => self.reason,
+            GatePhase::Idle | GatePhase::Pending { .. } => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,5 +381,179 @@ mod tests {
             );
             assert!(!r.label().is_empty(), "{r:?} has no label");
         }
+    }
+
+    // ---- DisplayGate ----------------------------------------------------
+
+    const C: Option<LoadingReason> = Some(LoadingReason::Connecting);
+
+    fn gate(phase: GatePhase) -> DisplayGate {
+        DisplayGate { phase, reason: C }
+    }
+
+    #[test]
+    fn a_load_shorter_than_the_debounce_never_shows() {
+        let (g, wake) = DisplayGate::default().on_reason(C, 0.0);
+        assert_eq!(g.phase, GatePhase::Pending { since: 0.0 });
+        assert_eq!(wake, Some(200.0));
+        assert_eq!(g.visible_reason(), None);
+
+        let (g, wake) = g.on_reason(None, 150.0);
+        assert_eq!(g.phase, GatePhase::Idle);
+        assert_eq!(wake, None);
+        assert_eq!(g.visible_reason(), None);
+
+        let g = g.on_tick(200.0);
+        assert_eq!(
+            g.phase,
+            GatePhase::Idle,
+            "the stale debounce timer is a no-op"
+        );
+        assert_eq!(g.visible_reason(), None);
+    }
+
+    #[test]
+    fn shows_once_the_debounce_elapses() {
+        let (g, _) = DisplayGate::default().on_reason(C, 0.0);
+        let g = g.on_tick(200.0);
+        assert_eq!(g.phase, GatePhase::Shown { shown_at: 200.0 });
+        assert_eq!(g.visible_reason(), C);
+    }
+
+    /// `shown_at` is when the tick actually fired, not `since + 200`, so the
+    /// minimum is measured from when the user could first see the dots.
+    #[test]
+    fn a_late_tick_measures_the_minimum_from_when_it_fired() {
+        let g = gate(GatePhase::Pending { since: 0.0 }).on_tick(900.0);
+        assert_eq!(g.phase, GatePhase::Shown { shown_at: 900.0 });
+    }
+
+    #[test]
+    fn an_early_tick_is_a_noop() {
+        let g = gate(GatePhase::Pending { since: 0.0 });
+        assert_eq!(g.on_tick(199.0), g);
+    }
+
+    /// An early tick is a no-op, so the caller needs to know when to try again.
+    #[test]
+    fn pending_deadline_tells_an_early_timer_when_to_retry() {
+        assert_eq!(
+            gate(GatePhase::Pending { since: 10.0 }).pending_deadline(),
+            Some(210.0)
+        );
+        assert_eq!(
+            gate(GatePhase::Holding { shown_at: 200.0 }).pending_deadline(),
+            Some(1700.0)
+        );
+        assert_eq!(DisplayGate::default().pending_deadline(), None);
+        assert_eq!(
+            gate(GatePhase::Shown { shown_at: 200.0 }).pending_deadline(),
+            None
+        );
+    }
+
+    #[test]
+    fn a_short_load_is_held_for_the_minimum() {
+        let (g, wake) = gate(GatePhase::Shown { shown_at: 200.0 }).on_reason(None, 250.0);
+        assert_eq!(g.phase, GatePhase::Holding { shown_at: 200.0 });
+        assert_eq!(wake, Some(1450.0));
+
+        let g = g.on_tick(1699.0);
+        assert_eq!(g.phase, GatePhase::Holding { shown_at: 200.0 });
+        let g = g.on_tick(1700.0);
+        assert_eq!(g.phase, GatePhase::Idle);
+        assert_eq!(g.visible_reason(), None);
+    }
+
+    #[test]
+    fn the_hold_keeps_the_last_reason() {
+        let (g, _) = gate(GatePhase::Shown { shown_at: 200.0 }).on_reason(None, 250.0);
+        assert_eq!(g.phase, GatePhase::Holding { shown_at: 200.0 });
+        assert_eq!(g.visible_reason(), C);
+    }
+
+    #[test]
+    fn a_long_load_hides_as_soon_as_it_ends() {
+        let (g, wake) = gate(GatePhase::Shown { shown_at: 200.0 }).on_reason(None, 3000.0);
+        assert_eq!(g.phase, GatePhase::Idle);
+        assert_eq!(wake, None);
+        assert_eq!(g.visible_reason(), None);
+    }
+
+    /// The 1.5 s is a minimum on total visible time, not a fresh 1.5 s after
+    /// every flicker.
+    #[test]
+    fn busy_again_during_the_hold_keeps_the_original_clock() {
+        let g = gate(GatePhase::Holding { shown_at: 200.0 });
+        let (g, wake) = g.on_reason(C, 900.0);
+        assert_eq!(g.phase, GatePhase::Shown { shown_at: 200.0 });
+        assert_eq!(wake, None);
+
+        let (g, wake) = g.on_reason(None, 1000.0);
+        assert_eq!(g.phase, GatePhase::Holding { shown_at: 200.0 });
+        assert_eq!(wake, Some(700.0));
+
+        assert_eq!(g.on_tick(1700.0).phase, GatePhase::Idle);
+    }
+
+    #[test]
+    fn a_cancelled_pending_restarts_the_debounce() {
+        let (g, _) = DisplayGate::default().on_reason(C, 0.0);
+        let (g, _) = g.on_reason(None, 100.0);
+        let (g, wake) = g.on_reason(C, 150.0);
+        assert_eq!(g.phase, GatePhase::Pending { since: 150.0 });
+        assert_eq!(wake, Some(200.0));
+
+        let g = g.on_tick(200.0);
+        assert_eq!(
+            g.phase,
+            GatePhase::Pending { since: 150.0 },
+            "the first debounce timer is stale and must change nothing"
+        );
+        let g = g.on_tick(350.0);
+        assert_eq!(g.phase, GatePhase::Shown { shown_at: 350.0 });
+    }
+
+    #[test]
+    fn reason_updates_while_shown() {
+        let (g, wake) = gate(GatePhase::Shown { shown_at: 200.0 })
+            .on_reason(Some(LoadingReason::SyncingRooms), 400.0);
+        assert_eq!(g.phase, GatePhase::Shown { shown_at: 200.0 });
+        assert_eq!(wake, None);
+        assert_eq!(g.visible_reason(), Some(LoadingReason::SyncingRooms));
+    }
+
+    #[test]
+    fn reason_updates_while_pending_without_rearming() {
+        let (g, _) = DisplayGate::default().on_reason(C, 0.0);
+        let (g, wake) = g.on_reason(Some(LoadingReason::LoadingRooms), 50.0);
+        assert_eq!(g.phase, GatePhase::Pending { since: 0.0 });
+        assert_eq!(wake, None, "the original debounce timer still covers it");
+        assert_eq!(
+            g.on_tick(200.0).visible_reason(),
+            Some(LoadingReason::LoadingRooms)
+        );
+    }
+
+    #[test]
+    fn ticks_in_idle_and_shown_are_noops() {
+        let idle = DisplayGate::default();
+        assert_eq!(idle.on_tick(10_000.0), idle);
+        let shown = gate(GatePhase::Shown { shown_at: 200.0 });
+        assert_eq!(shown.on_tick(10_000.0), shown);
+    }
+
+    #[test]
+    fn idle_to_idle_arms_nothing() {
+        let (g, wake) = DisplayGate::default().on_reason(None, 0.0);
+        assert_eq!(g, DisplayGate::default());
+        assert_eq!(wake, None);
+    }
+
+    /// Product requirements: changing either should be a conscious edit here too.
+    #[test]
+    fn timing_constants_are_as_specified() {
+        assert_eq!(SHOW_DEBOUNCE_MS, 200.0);
+        assert_eq!(MIN_VISIBLE_MS, 1500.0);
     }
 }
