@@ -92,3 +92,23 @@ pub enum PendingRoomStatus {
     /// Error occurred during subscription or retrieval
     Error(String),
 }
+
+impl PendingRoomStatus {
+    /// Whether the join is still being worked on (not yet subscribed, not failed).
+    pub fn is_in_progress(&self) -> bool {
+        matches!(self, Self::PendingSubscription | Self::Subscribing)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_in_progress_only_for_pending_and_subscribing() {
+        assert!(PendingRoomStatus::PendingSubscription.is_in_progress());
+        assert!(PendingRoomStatus::Subscribing.is_in_progress());
+        assert!(!PendingRoomStatus::Subscribed.is_in_progress());
+        assert!(!PendingRoomStatus::Error("x".to_string()).is_in_progress());
+    }
+}
