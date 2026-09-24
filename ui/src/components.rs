@@ -4,6 +4,7 @@ pub mod direct_messages;
 pub mod invite_click_interceptor;
 pub mod members;
 pub mod mention_click_interceptor;
+pub mod network_activity_indicator;
 pub mod room_list;
 
 /// Tree-wide audit for freenet/river#564: every EDITABLE form control that
