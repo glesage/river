@@ -50,9 +50,9 @@ const ROOM_LIST_STATE_KEY: &str = "room-list-state";
 /// non-empty list always wins.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum RoomListDisplay {
-    /// Initial load hasn't resolved yet — subtle spinner + "Loading your rooms…".
+    /// Initial load hasn't resolved yet — wave dots + "Loading your rooms…".
     Loading,
-    /// A delegate/room migration is recovering rooms — spinner + "Migrating…".
+    /// A delegate/room migration is recovering rooms — wave dots + "Migrating…".
     Migrating,
     /// Load resolved and the user genuinely has no rooms — calm empty state.
     Empty,
@@ -424,7 +424,7 @@ pub fn RoomList() -> Element {
                 // Non-room states (freenet/river#397). Shown only when there are
                 // no rooms to render — the room-item map and tail drop zone below
                 // produce nothing while empty, so this is purely additive. A
-                // subtle, near-monochrome block: spinner (loading/migrating) or a
+                // subtle block: wave dots (loading/migrating) or a
                 // calm empty-state hint, vertically centred in the rail.
                 match display {
                     RoomListDisplay::Loading => rsx! {
@@ -432,7 +432,7 @@ pub fn RoomList() -> Element {
                             key: "{ROOM_LIST_STATE_KEY}",
                             "data-testid": "room-list-loading",
                             class: "flex flex-col items-center justify-center gap-2 py-10 px-4 text-center",
-                            div { class: "animate-spin w-4 h-4 border-2 border-text-muted border-t-transparent rounded-full" }
+                            crate::components::loading_dots::WaveDots { testid: "room-list-loading-dots" }
                             span { class: "text-sm text-text-muted", "Loading your rooms…" }
                         }
                     },
@@ -441,7 +441,7 @@ pub fn RoomList() -> Element {
                             key: "{ROOM_LIST_STATE_KEY}",
                             "data-testid": "room-list-migrating",
                             class: "flex flex-col items-center justify-center gap-2 py-10 px-4 text-center",
-                            div { class: "animate-spin w-4 h-4 border-2 border-text-muted border-t-transparent rounded-full" }
+                            crate::components::loading_dots::WaveDots { testid: "room-list-migrating-dots" }
                             span { class: "text-sm text-text-muted", "Migrating your rooms…" }
                             span { class: "text-xs text-text-muted opacity-70", "(one-time step after an update)" }
                         }

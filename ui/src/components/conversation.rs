@@ -4745,7 +4745,7 @@ pub fn Conversation() -> Element {
                                 div {
                                     class: "flex-1 flex flex-col items-center justify-center gap-3 text-center p-8",
                                     "data-testid": "conversation-rooms-loading",
-                                    div { class: "animate-spin w-6 h-6 border-2 border-text-muted border-t-transparent rounded-full" }
+                                    crate::components::loading_dots::WaveDots { testid: "conversation-rooms-loading-dots" }
                                     span { class: "text-sm text-text-muted", "Loading your rooms…" }
                                     NoRoomFooter {}
                                 }
@@ -4754,7 +4754,7 @@ pub fn Conversation() -> Element {
                                 div {
                                     class: "flex-1 flex flex-col items-center justify-center gap-3 text-center p-8",
                                     "data-testid": "conversation-rooms-migrating",
-                                    div { class: "animate-spin w-6 h-6 border-2 border-text-muted border-t-transparent rounded-full" }
+                                    crate::components::loading_dots::WaveDots { testid: "conversation-rooms-migrating-dots" }
                                     span { class: "text-sm text-text-muted", "Migrating your rooms…" }
                                     span { class: "text-xs text-text-muted opacity-70", "(one-time step after an update)" }
                                     NoRoomFooter {}

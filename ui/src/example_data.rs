@@ -1711,6 +1711,51 @@ pub fn install_test_hooks() {
                 });
             }) as Box<dyn FnMut()>),
         );
+
+        // A room waiting for its first sync, like an imported one before its first
+        // GET: give the named room an unsigned default state (keeping its name), so
+        // `RoomData::is_awaiting_initial_sync()` is true. Mirrors
+        // `members.rs::build_imported_room_data`.
+        expose(
+            &hooks,
+            "awaitRoomSync",
+            Closure::wrap(Box::new(move |name: JsValue| {
+                let name = name.as_string().unwrap_or_default();
+                crate::util::defer(move || {
+                    crate::components::app::ROOMS.with_mut(|rooms| {
+                        for room in rooms.map.values_mut() {
+                            if room.display_name() == name {
+                                let mut state = river_core::ChatRoomStateV1::default();
+                                state.configuration.configuration.display =
+                                    river_core::room_state::privacy::RoomDisplayMetadata::public(
+                                        name.clone(),
+                                        None,
+                                    );
+                                room.room_state = state;
+                            }
+                        }
+                    });
+                });
+            }) as Box<dyn FnMut(JsValue)>),
+        );
+
+        // Hold the invite-via-DM picker in its "Sending invite…" state. The picker
+        // only shows that footer while `INVITE_VIA_DM_PICKER_INFLIGHT` is `Some`,
+        // and a no-sync send finishes too fast to catch — this holds it on. It
+        // schedules no watchdog, so it stays until the page reloads.
+        expose(
+            &hooks,
+            "holdInviteSend",
+            Closure::wrap(Box::new(move || {
+                crate::util::defer(|| {
+                    *crate::components::direct_messages::INVITE_VIA_DM_PICKER_INFLIGHT.write() =
+                        Some(crate::components::direct_messages::InvitePickInflight {
+                            generation: u64::MAX,
+                            room_vk: SigningKey::from_bytes(&[0xB7; 32]).verifying_key(),
+                        });
+                });
+            }) as Box<dyn FnMut()>),
+        );
     }
 
     let _ = js_sys::Reflect::set(&window, &JsValue::from_str("__riverTest"), &hooks);
