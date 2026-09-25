@@ -121,7 +121,7 @@ pub struct InvitePickInflight {
     /// Monotonic counter — every fresh row-click bumps this. Watchdogs
     /// capture it at scheduling time and no-op if it has moved on.
     pub generation: u64,
-    /// Which candidate room the user picked, for the row spinner.
+    /// Which candidate room the user picked, for the picker's loading dots.
     pub room_vk: VerifyingKey,
 }
 

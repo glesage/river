@@ -533,7 +533,7 @@ pub fn InviteViaDmPickerModal() -> Element {
                     div { class: "border-t border-border px-5 py-3 flex items-center justify-between",
                         if any_pending {
                             div { class: "flex items-center gap-2 text-xs text-text-muted",
-                                div { class: "animate-spin w-3 h-3 border-2 border-text-muted border-t-transparent rounded-full" }
+                                crate::components::loading_dots::SmallDots { testid: "invite-sending-dots" }
                                 "Sending invite…"
                             }
                         } else {
