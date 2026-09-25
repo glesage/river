@@ -31,6 +31,10 @@ use dioxus::prelude::*;
 
 const DOT_COUNT: usize = 10;
 
+/// Dots in the connection pill. main.css's open `.pill-activity` width must
+/// fit exactly this many (see `pill_width_fits_the_dots`).
+const PILL_DOT_COUNT: usize = 5;
+
 /// Whether the primary dots are on screen, and why. Written only by
 /// [`NetworkActivityIndicator`]'s effect (synchronously, a single `set`) and by
 /// its timers (inside `crate::util::defer`).
@@ -241,20 +245,25 @@ pub fn NetworkActivityDots(docked: bool) -> Element {
     }
 }
 
-/// Three small dots inside the connection pill while [`background_activity_visible`]
-/// says so. `span`s, not `div`s: the pill's first `div` is its status dot,
-/// which connection-status-indicator.spec.ts reads.
+/// Small dots riding a wave inside the connection pill while
+/// [`background_activity_visible`] says so. `span`s, not `div`s: the pill's
+/// first `div` is its status dot, which connection-status-indicator.spec.ts
+/// reads.
+///
+/// Always mounted, so the dots can fade out: `data-active` says whether they
+/// are showing, and main.css transitions the span's width and opacity on it.
+/// The pill centres its content, so the widening span glides the label left
+/// as the dots appear, and back right as they go.
 #[component]
 pub fn PillActivityDots() -> Element {
-    if !background_activity_visible() {
-        return rsx! {};
-    }
+    let active = background_activity_visible();
     rsx! {
         span {
             class: "pill-activity",
             "aria-hidden": "true",
             "data-testid": "connection-activity-dots",
-            for i in 0..3 {
+            "data-active": if active { "true" } else { "false" },
+            for i in 0..PILL_DOT_COUNT {
                 span { key: "{i}", class: "pill-activity-dot", style: "--i: {i};" }
             }
         }
@@ -1169,6 +1178,23 @@ mod tests {
     fn wave_step_matches_the_css() {
         let css = include_str!("../../assets/main.css");
         assert!(css.contains(&format!("(var(--i) - 10) * {WAVE_STEP_S}s")));
+    }
+
+    /// The pill's open dots span must be exactly as wide as its dots (3 px
+    /// each, 2 px gaps): narrower clips the last dot, wider leaves a gap that
+    /// pushes the label further than the dots need.
+    #[test]
+    fn pill_width_fits_the_dots() {
+        let css = include_str!("../../assets/main.css");
+        let rule = &css[css
+            .find(".pill-activity[data-active=\"true\"] {")
+            .expect("open .pill-activity rule")..];
+        let rule = &rule[..rule.find('}').unwrap()];
+        let width = PILL_DOT_COUNT * 3 + (PILL_DOT_COUNT - 1) * 2;
+        assert!(
+            rule.contains(&format!("width: {width}px;")),
+            "the open .pill-activity width must fit {PILL_DOT_COUNT} dots ({width}px)"
+        );
     }
 
     /// "They should remain curves": monotone cubic-beziers only, no steps,
