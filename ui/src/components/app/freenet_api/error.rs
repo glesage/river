@@ -93,7 +93,40 @@ impl From<&str> for SynchronizerError {
 
 impl From<client_api::Error> for SynchronizerError {
     fn from(error: client_api::Error) -> Self {
-        SynchronizerError::ClientApiError(error.to_string())
+        SynchronizerError::ClientApiError(node_error_message(&error))
+    }
+}
+
+/// A freenet-stdlib client error as text for a user.
+///
+/// The browser client's `ConnectionError` displays as `request error: ` plus
+/// raw JSON that can carry the whole request's `Debug`; this keeps only the
+/// JSON's `"error"` field.
+pub fn node_error_message(error: &client_api::Error) -> String {
+    #[cfg(target_family = "wasm")]
+    {
+        if let client_api::Error::ConnectionError(value) = error {
+            if let Some(text) = connection_error_text(value) {
+                return capitalise_first(text);
+            }
+        }
+    }
+    capitalise_first(&error.to_string())
+}
+
+/// The `"error"` field of the JSON freenet-stdlib's browser client puts in
+/// `ConnectionError` (`browser.rs`: `{"error": …, "source"|"origin": …}`).
+/// Pure, so it is testable natively, where that variant does not exist.
+#[cfg_attr(not(target_family = "wasm"), allow(dead_code))]
+fn connection_error_text(value: &freenet_stdlib::prelude::serde_json::Value) -> Option<&str> {
+    value.get("error")?.as_str().filter(|s| !s.is_empty())
+}
+
+fn capitalise_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
     }
 }
 
@@ -164,6 +197,58 @@ mod tests {
         assert_eq!(
             SynchronizerError::WebSocketError("x".into()).to_string(),
             "WebSocket connection error: x"
+        );
+    }
+
+    #[test]
+    fn connection_error_text_takes_the_error_field() {
+        use freenet_stdlib::prelude::serde_json::json;
+        assert_eq!(
+            connection_error_text(&json!({"error": "connection closed", "source": "close"})),
+            Some("connection closed")
+        );
+        assert_eq!(
+            connection_error_text(&json!({
+                "error": "WebSocket is not open (state: CLOSED)",
+                "origin": "send precondition check",
+                "request": "ContractOp(..)"
+            })),
+            Some("WebSocket is not open (state: CLOSED)")
+        );
+        // Anything else falls back to `Display`.
+        for value in [
+            json!({"source": "close"}),
+            json!({"error": ""}),
+            json!({"error": 5}),
+        ] {
+            assert_eq!(connection_error_text(&value), None, "{value}");
+        }
+    }
+
+    #[test]
+    fn node_error_message_capitalises_and_drops_no_meaning() {
+        assert_eq!(
+            node_error_message(&client_api::Error::ConnectionClosed),
+            "Connection closed"
+        );
+        assert_eq!(
+            node_error_message(&client_api::Error::ChannelClosed),
+            "Channel closed"
+        );
+    }
+
+    #[test]
+    fn capitalise_first_handles_empty_and_non_ascii() {
+        assert_eq!(capitalise_first(""), "");
+        assert_eq!(capitalise_first("é"), "É");
+        assert_eq!(capitalise_first("WebSocket"), "WebSocket");
+    }
+
+    #[test]
+    fn client_api_error_converts_without_a_double_label() {
+        assert_eq!(
+            SynchronizerError::from(client_api::Error::ConnectionClosed).user_message(),
+            "Connection closed"
         );
     }
 
