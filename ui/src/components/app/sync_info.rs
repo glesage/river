@@ -331,7 +331,7 @@ impl SyncInfo {
         // resets the room to `Disconnected` (retry) or, once the bound is hit
         // for a room STILL awaiting its initial sync, promotes it to terminal
         // `Error` — in which case it must NOT be re-added to the awaiting set,
-        // so the spinner can stop (freenet/river#290). A room that already holds
+        // so the loading dots can stop (freenet/river#290). A room that already holds
         // valid synced state is never given up on; it keeps retrying.
         for key in timed_out {
             let awaiting_initial_sync = rooms

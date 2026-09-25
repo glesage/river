@@ -854,7 +854,7 @@ impl FreenetSynchronizer {
                                             // so we retry. But a restored/imported room whose contract
                                             // is genuinely absent from the network fails every time —
                                             // without a bound it re-GETs forever and the
-                                            // "Syncing room state…" spinner spins forever
+                                            // "Syncing room state…" loading dots never stop
                                             // (freenet/river#290). Bound the retries: after
                                             // MAX_SYNC_ATTEMPTS_BEFORE_ERROR failures the room is
                                             // promoted to a terminal Error and we stop retrying it.

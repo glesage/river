@@ -2230,7 +2230,7 @@ fn install_scroll_pin_listeners(
 ///   It matters most in the unresolved states: a node that never connects
 ///   leaves `ROOMS_LOAD_STATE` at its `Loading` default forever, because
 ///   `begin_load_attempt` — which arms the 60s backstop — runs only after a
-///   successful connect. Without the pill that user watches a spinner with
+///   successful connect. Without the pill that user watches the wave dots with
 ///   nothing on screen saying the socket is down. It is also what makes the
 ///   failed state's "Check your connection and try again" actionable.
 ///
@@ -4562,10 +4562,10 @@ pub fn Conversation() -> Element {
                 // A room still awaiting its initial sync can reach a terminal
                 // `RoomSyncStatus::Error` — most importantly the bounded
                 // contract-absent case (freenet/river#290), but also a failed
-                // GET/PUT send (WebSocket/API error). The spinner below is gated
-                // on `is_awaiting_initial_sync()`, which stays true while the
-                // room holds placeholder state — so without this check it would
-                // spin forever. Surface the STORED error message (not a
+                // GET/PUT send (WebSocket/API error). The small dots below are
+                // gated on `is_awaiting_initial_sync()`, which stays true while
+                // the room holds placeholder state — so without this check they
+                // would run forever. Surface the STORED error message (not a
                 // hardcoded "not found") so WebSocket/API failures are not
                 // misreported as the room being removed.
                 //
@@ -4740,7 +4740,7 @@ pub fn Conversation() -> Element {
                         // its `Loading` default indefinitely — `begin_load_attempt`,
                         // which arms the 60s backstop, runs only after a
                         // successful connect — so without the pill that user
-                        // would watch a spinner with nothing telling them the
+                        // would watch the wave dots with nothing telling them the
                         // socket is down (#509 review).
                         match crate::components::room_list::current_room_list_display() {
                             crate::components::room_list::RoomListDisplay::Loading => rsx! {

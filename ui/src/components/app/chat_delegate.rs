@@ -8474,7 +8474,7 @@ fn legacy_migration_in_progress_key() -> String {
 ///
 /// Distinct from `ROOMS_LOAD_STATE == Loaded`: during the freenet/river#345
 /// interrupted-legacy-migration RECOVERY, the per-room loader intentionally sets
-/// `Loaded` (so the partial room list renders instead of a spinner) BEFORE the
+/// `Loaded` (so the partial room list renders instead of the wave dots) BEFORE the
 /// background recovery workers restore rooms missing from the partial per-room
 /// index — and `SAW_FETCH_FAILURE` stays false. Importing an identity for one of
 /// those still-missing rooms in that window would misclassify it as new and
@@ -8546,7 +8546,7 @@ pub fn clear_legacy_migration_in_progress() {
 // =============================================================================
 
 /// Coarse state of the initial room-list load, consumed by `RoomList` to decide
-/// what to show while `ROOMS` is still empty (spinner vs. migrating vs. a calm
+/// what to show while `ROOMS` is still empty (wave dots vs. migrating vs. a calm
 /// "no rooms yet"). Deliberately coarse: the room COUNT (from `ROOMS`) decides
 /// list-vs-none; this only disambiguates the three non-room states.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

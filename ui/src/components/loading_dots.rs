@@ -183,6 +183,38 @@ impl SplitMix64 {
 mod tests {
     use super::*;
 
+    /// Loading is shown with dots (`WaveDots`, `SmallDots`, or the gated
+    /// indicators), never a spinner: one visual language for "in progress".
+    #[test]
+    fn no_spinners_are_left() {
+        use std::path::{Path, PathBuf};
+        fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
+            for entry in std::fs::read_dir(dir).expect("readable source dir") {
+                let path = entry.expect("readable dir entry").path();
+                if path.is_dir() {
+                    rust_files(&path, out);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    out.push(path);
+                }
+            }
+        }
+        // Split, so this file doesn't match itself.
+        let needle = concat!("animate-", "spin");
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+        rust_files(&src, &mut files);
+        assert!(files.len() > 20, "source walk found suspiciously few files");
+        let offenders: Vec<String> = files
+            .iter()
+            .filter(|p| std::fs::read_to_string(p).unwrap().contains(needle))
+            .map(|p| p.strip_prefix(&src).unwrap_or(p).display().to_string())
+            .collect();
+        assert!(
+            offenders.is_empty(),
+            "use loading_dots::WaveDots or SmallDots instead of a spinner in: {offenders:?}"
+        );
+    }
+
     /// `SmallDots` are the pill's dots outside the pill: same dot class, same
     /// gap and height as `.pill-activity`, and always open.
     #[test]

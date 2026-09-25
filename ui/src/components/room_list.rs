@@ -68,7 +68,7 @@ pub(crate) enum RoomListDisplay {
 ///
 /// A non-empty room list ALWAYS renders the list — once there's something to
 /// show, load/migration bookkeeping is irrelevant. Only when `room_count == 0`
-/// do we disambiguate the non-room states: `Loading`/`Migrating` spinners, the
+/// do we disambiguate the non-room states: `Loading`/`Migrating` wave dots, the
 /// `LoadFailed` error+retry block, and the calm `Empty`. `Empty` is reached ONLY
 /// from `Loaded`, so an unresolved / migrating / failed load never shows "no
 /// rooms yet".
@@ -225,9 +225,9 @@ pub fn RoomList() -> Element {
                 // A room is "awaiting sync" only while it has placeholder state
                 // AND has not been given up on. Once a placeholder room reaches
                 // a terminal Error (the bounded contract-absent case,
-                // freenet/river#290, or a failed GET/PUT send) the spinner must
-                // stop, so we surface an error marker (tooltip = the stored
-                // error message) instead of a perpetual spinner.
+                // freenet/river#290, or a failed GET/PUT send) the loading dots
+                // must stop, so we surface an error marker (tooltip = the
+                // stored error message) instead of perpetual loading dots.
                 //
                 // Scoped to placeholder-state rooms: a fully-synced room that
                 // later hits some other transient `Error` should not show the
@@ -235,8 +235,8 @@ pub fn RoomList() -> Element {
                 let sync_error_msg: Option<String> = if room_data.is_awaiting_initial_sync() {
                     // Second fallible read in this memo, so it nudges too: a
                     // contended pass drops the SYNC_INFO subscription and the
-                    // room's error marker silently reads as a spinner until an
-                    // unrelated signal moves (freenet/river#555).
+                    // room's error marker silently reads as loading dots until
+                    // an unrelated signal moves (freenet/river#555).
                     let status = match SYNC_INFO.try_read() {
                         Ok(si) => si.get_sync_status(&room_key).cloned(),
                         Err(_) => {
@@ -324,8 +324,9 @@ pub fn RoomList() -> Element {
     // room there is nothing to reorder.
     let room_count: usize = room_items.read().len();
 
-    // Rail display state (freenet/river#397): the list, a loading spinner, a
-    // migrating spinner, the failed block, or the calm empty state.
+    // Rail display state (freenet/river#397): the list, the loading wave
+    // dots, the migrating wave dots, the failed block, or the calm empty
+    // state.
     //
     // Through the SHARED reader, which the conversation panel's no-room screen
     // also calls (freenet/river#509). Deriving it separately here is what let
@@ -853,7 +854,7 @@ mod tests {
     }
 
     /// freenet/river#397: the initial load hasn't resolved and there are no
-    /// rooms yet → show the loading spinner, NOT a blank list or a premature
+    /// rooms yet → show the loading wave dots, NOT a blank list or a premature
     /// "no rooms yet".
     #[test]
     fn loading_with_no_rooms_shows_loading() {
@@ -920,7 +921,7 @@ mod tests {
 
     /// freenet/river#397 (#1 safety invariant): a genuinely-new user, once the
     /// load resolves (`Loaded`) with zero rooms, lands on the calm empty state —
-    /// never a perpetual spinner. (The resolution itself — Loading→Loaded via the
+    /// never perpetual loading dots. (The resolution itself — Loading→Loaded via the
     /// completion signal / backstop — is pinned by the chat_delegate tests.)
     #[test]
     fn new_user_resolves_to_empty_not_stuck_loading() {
