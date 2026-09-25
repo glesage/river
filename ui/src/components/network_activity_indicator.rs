@@ -387,14 +387,15 @@ impl BackgroundReason {
         }
     }
 
-    /// The pill's tooltip while the dots show.
+    /// The pill's tooltip while the dots show. No trailing ellipsis: the dots
+    /// already say it is ongoing.
     pub(crate) fn label(self) -> &'static str {
         match self {
-            BackgroundReason::Connecting => "Connecting to Freenet…",
-            BackgroundReason::Reconnecting => "Reconnecting to Freenet…",
-            BackgroundReason::LoadingRooms => "Loading your rooms…",
-            BackgroundReason::SyncingRooms => "Syncing rooms with the network…",
-            BackgroundReason::Requests => "Waiting on the network…",
+            BackgroundReason::Connecting => "Connecting to Freenet",
+            BackgroundReason::Reconnecting => "Reconnecting to Freenet",
+            BackgroundReason::LoadingRooms => "Loading your rooms",
+            BackgroundReason::SyncingRooms => "Syncing rooms with the network",
+            BackgroundReason::Requests => "Waiting on the network",
         }
     }
 }
@@ -886,6 +887,10 @@ mod tests {
                 "{a:?}"
             );
             assert!(!r.label().is_empty(), "{r:?} has no label");
+            assert!(
+                !r.label().ends_with('…') && !r.label().ends_with("..."),
+                "{r:?}: the pill's dots replace the ellipsis"
+            );
         }
     }
 

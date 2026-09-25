@@ -47,7 +47,7 @@ async function waitForApp(page: Page) {
 // with a non-subscribing `peek()` and renders no real state) would not.
 const STATUS_STATES = [
   { dot: "bg-green-500", label: "Connected" },
-  { dot: "bg-yellow-500", label: "Connecting..." },
+  { dot: "bg-yellow-500", label: "Connecting" },
   { dot: "bg-red-500", label: "Disconnected" },
   // SynchronizerStatus::Error shows its message alone (no "Error:" prefix),
   // so it has no fixed label. A no-sync build sits at Disconnected and never

@@ -40,7 +40,7 @@ use self::invite_member_modal::InviteMemberModal;
 /// places that can fire subscriber notifications during the write
 /// guard's Drop on Firefox mobile; an infallible `.read()` here would
 /// risk the documented `RefCell already borrowed` panic. If the read
-/// fails (signal currently mid-write), we fall back to "Connecting..."
+/// fails (signal currently mid-write), we fall back to "Connecting"
 /// — the same neutral state used on initial app boot — and the next
 /// render will pick up the real value.
 #[component]
@@ -91,11 +91,12 @@ pub fn ConnectionStatusIndicator() -> Element {
 }
 
 /// The pill's text. An error shows only its message: the red pill already
-/// says it is an error.
+/// says it is an error. No trailing ellipsis: the pill's dots show that work
+/// is ongoing.
 fn connection_status_label(status: &SynchronizerStatus) -> String {
     match status {
         SynchronizerStatus::Connected => "Connected".to_string(),
-        SynchronizerStatus::Connecting => "Connecting...".to_string(),
+        SynchronizerStatus::Connecting => "Connecting".to_string(),
         SynchronizerStatus::Disconnected => "Disconnected".to_string(),
         SynchronizerStatus::Error(msg) => msg.clone(),
     }
@@ -2742,7 +2743,7 @@ mod tests {
         );
         assert_eq!(
             connection_status_label(&SynchronizerStatus::Connecting),
-            "Connecting..."
+            "Connecting"
         );
         assert_eq!(
             connection_status_label(&SynchronizerStatus::Disconnected),

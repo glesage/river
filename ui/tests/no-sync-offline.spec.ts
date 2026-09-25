@@ -29,7 +29,7 @@ test("a no-sync build opens no WebSocket and raises no page error", async ({ pag
 
   expect(sockets, "no-sync build opened a WebSocket").toEqual([]);
   expect(errors, "uncaught page errors on load").toEqual([]);
-  // With nothing to connect to, the status says so rather than "Connecting...".
+  // With nothing to connect to, the status says so rather than "Connecting".
   await expect(
     page.locator('[data-testid="connection-status-indicator"]:visible')
   ).toContainText("Disconnected");

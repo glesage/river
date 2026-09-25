@@ -188,7 +188,7 @@ for (const { label, viewport } of [
       await expect(visible).toHaveAttribute("aria-busy", "true");
       // Why it is busy, for devtools and as the pill's tooltip.
       await expect(visible).toHaveAttribute("data-busy-reason", "connecting");
-      await expect(visible).toHaveAttribute("title", "Connecting to Freenet…");
+      await expect(visible).toHaveAttribute("title", "Connecting to Freenet");
 
       // No debounce: on screen within a couple of frames of the change.
       const t0 = await page.evaluate(() => (window as any).__t0);
@@ -210,7 +210,7 @@ for (const { label, viewport } of [
       await expect(page.locator(VISIBLE_DOTS)).toHaveCount(1);
 
       await expect(visible.locator("div").first()).toHaveClass(/bg-yellow-500/);
-      expect(((await visible.textContent()) ?? "").trim()).toBe("Connecting...");
+      expect(((await visible.textContent()) ?? "").trim()).toBe("Connecting");
     });
 
     test("rooms loading while connected is background work", async ({
