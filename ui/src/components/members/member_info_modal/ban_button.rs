@@ -201,11 +201,10 @@ pub fn BanButton(member_to_ban: MemberId, can_ban: bool, nickname: String) -> El
                     });
 
                     // Mark room as needing sync to propagate ban and rotation
-                    crate::components::app::node_activity::await_room_update(
+                    crate::components::app::user_actions::mark_user_change(
                         current_room,
                         crate::components::app::node_activity::ActionKind::Saving,
                     );
-                    crate::components::app::mark_needs_sync(current_room);
                     info!("Marked room for synchronization after ban");
                 });
             });

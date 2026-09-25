@@ -59,3 +59,52 @@ pub(crate) fn fn_body<'a>(src: &'a str, prefix: &str) -> &'a str {
     }
     panic!("unbalanced braces after {prefix:?}");
 }
+
+/// The declarations of the flat CSS rule whose selector is exactly `selector`,
+/// matched at a line start: `.prose blockquote {` is a suffix of
+/// `.bg-accent .prose blockquote {`, and an indented copy inside `@media` is
+/// not the top-level rule. Not a CSS parser: the body ends at the first `}`.
+pub(crate) fn css_rule_body<'a>(css: &'a str, selector: &str) -> &'a str {
+    let needle = format!("\n{selector} {{");
+    let start = css
+        .find(&needle)
+        .unwrap_or_else(|| panic!("the stylesheet should contain a `{selector}` rule"))
+        + needle.len();
+    let end = start
+        + css[start..]
+            .find('}')
+            .unwrap_or_else(|| panic!("`{selector}` rule should be closed"));
+    &css[start..end]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::css_rule_body;
+
+    const CSS: &str = "\n.bg-accent .prose blockquote {\n  color: inherit;\n}\n\
+                       .prose blockquote {\n  color: gray;\n}\n\
+                       @media (x) {\n    .toast {\n  top: 0;\n    }\n}\n\
+                       .toast {\n  top: 1rem;\n}\n";
+
+    #[test]
+    fn a_selector_matches_only_its_own_rule() {
+        assert!(css_rule_body(CSS, ".prose blockquote").contains("gray"));
+        assert!(css_rule_body(CSS, ".bg-accent .prose blockquote").contains("inherit"));
+        assert!(
+            css_rule_body(CSS, ".toast").contains("1rem"),
+            "an indented rule inside @media is not the top-level one"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "should contain a `.missing` rule")]
+    fn a_missing_selector_is_rejected() {
+        css_rule_body(CSS, ".missing");
+    }
+
+    #[test]
+    #[should_panic(expected = "rule should be closed")]
+    fn an_unclosed_rule_is_rejected() {
+        css_rule_body("\n.open {\n  top: 0;\n", ".open");
+    }
+}

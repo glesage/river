@@ -1,20 +1,12 @@
 import { test, expect, Page } from "@playwright/test";
 import { waitForApp } from "./example-room";
+import { callRiverTest } from "./river-test";
 
 // No-sync needs an explicit Connected status for the loading indicator.
 // The test invitation targets a room absent from example data; without a
 // synchronizer, its join stays pending until finishTestJoin / failTestJoin.
 
 const INDICATOR = "network-activity-indicator";
-
-async function hook(page: Page, name: string, arg?: string) {
-  await page.evaluate(
-    ({ name, arg }) => {
-      (window as any).__riverTest[name](arg);
-    },
-    { name, arg }
-  );
-}
 
 // App reads MOBILE_VIEW, so switching panels re-runs invitation recovery.
 // A desktop room click alone does not; narrow the viewport to reach the hamburger.
@@ -35,8 +27,8 @@ async function rerenderApp(page: Page, isMobile: boolean) {
 
 
 async function acceptTestInvitation(page: Page) {
-  await hook(page, "setSyncStatus", "connected");
-  await hook(page, "presentTestInvitation");
+  await callRiverTest(page, "setSyncStatus", "connected");
+  await callRiverTest(page, "presentTestInvitation");
   const modal = page.getByTestId("receive-invitation-modal");
   await expect(modal).toBeVisible({ timeout: 5_000 });
   await page.getByTestId("receive-invitation-accept-button").click();
@@ -64,7 +56,7 @@ test.describe("Joining a room", () => {
     await acceptTestInvitation(page);
     await expect(page.getByTestId(INDICATOR)).toBeVisible();
 
-    await hook(page, "finishTestJoin");
+    await callRiverTest(page, "finishTestJoin");
     const toast = page.getByTestId("toast");
     await expect(toast).toHaveText(/Room joined/);
     await expect(toast).toHaveAttribute("data-kind", "info");
@@ -75,7 +67,7 @@ test.describe("Joining a room", () => {
     await acceptTestInvitation(page);
     await expect(page.getByTestId(INDICATOR)).toBeVisible();
 
-    await hook(page, "failTestJoin");
+    await callRiverTest(page, "failTestJoin");
     const toast = page.getByTestId("toast");
     await expect(toast).toHaveAttribute("data-kind", "error");
     await expect(toast).toContainText("Couldn't join the room: room is at capacity");
@@ -92,11 +84,11 @@ test.describe("Joining a room", () => {
 
   test("after a failure, asking for the invitation again reopens it", async ({ page }) => {
     await acceptTestInvitation(page);
-    await hook(page, "failTestJoin");
+    await callRiverTest(page, "failTestJoin");
     await expect(page.getByTestId("toast")).toHaveAttribute("data-kind", "error");
 
 
-    await hook(page, "presentTestInvitation");
+    await callRiverTest(page, "presentTestInvitation");
     await expect(page.getByTestId("receive-invitation-modal")).toBeVisible();
     await expect(page.getByTestId("receive-invitation-accept-button")).toBeVisible();
   });
@@ -125,7 +117,7 @@ for (const { label, viewport, isMobile } of [
 
     test("after a failure, nothing reopens or restarts the join on its own", async ({ page }) => {
       await acceptTestInvitation(page);
-      await hook(page, "failTestJoin");
+      await callRiverTest(page, "failTestJoin");
       await expect(page.getByTestId("toast")).toHaveAttribute("data-kind", "error");
       await expect(page.getByTestId(INDICATOR)).toHaveCount(0, { timeout: 3_000 });
 

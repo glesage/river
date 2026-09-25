@@ -1,18 +1,73 @@
 import { test, expect, Page } from "@playwright/test";
 import { waitForApp, openRoomWithComposer } from "./example-room";
+import { callRiverTest } from "./river-test";
 
 
 const TOAST = "toast";
 
-async function hook(page: Page, name: string, ...args: unknown[]) {
-  await page.evaluate(
-    ({ name, args }) => {
-      (window as any).__riverTest[name](...args);
+/** Show a toast and catch its entrance animation before the 150ms elapses. */
+async function showAndPauseEntrance(page: Page, hookName: string, message: string) {
+  return page.evaluate(
+    async ({ hookName, message }) => {
+      const find = () => document.querySelector('[data-testid="toast"]');
+      const mounted = new Promise<Element>((resolve) => {
+        new MutationObserver((_, observer) => {
+          const el = find();
+          if (el) {
+            observer.disconnect();
+            resolve(el);
+          }
+        }).observe(document.body, { childList: true, subtree: true });
+      });
+      (window as any).__riverTest[hookName](message);
+      const toast = (await mounted) as HTMLElement;
+      const anims = toast.getAnimations();
+      anims.forEach((a) => a.pause());
+      const entrance = anims[0];
+      const sample = (t: number) => {
+        entrance.currentTime = t;
+        const r = toast.getBoundingClientRect();
+        return {
+          opacity: Number(getComputedStyle(toast).opacity),
+          x: r.x.toFixed(2),
+          y: r.y.toFixed(2),
+        };
+      };
+      const timing = entrance.effect!.getTiming();
+      const frames = [sample(0), sample(75), sample(150)];
+      anims.forEach((a) => a.finish());
+      return { count: anims.length, duration: timing.duration, frames };
     },
-    { name, args }
+    { hookName, message }
   );
 }
 
+/** Computed values of the card's shared styling and its border colour. */
+async function cardStyle(page: Page) {
+  return page.getByTestId(TOAST).evaluate((el) => {
+    const s = getComputedStyle(el);
+    return {
+      borderColor: s.borderColor,
+      borderWidth: s.borderWidth,
+      padding: s.padding,
+      borderRadius: s.borderRadius,
+      backgroundColor: s.backgroundColor,
+      fontSize: s.fontSize,
+    };
+  });
+}
+
+/** Computed border colour of a probe carrying the given Tailwind utilities. */
+async function utilityBorderColor(page: Page, className: string) {
+  return page.evaluate((className) => {
+    const probe = document.createElement("span");
+    probe.className = className;
+    document.body.append(probe);
+    const color = getComputedStyle(probe).borderColor;
+    probe.remove();
+    return color;
+  }, className);
+}
 
 async function toastIsOnTop(page: Page): Promise<boolean> {
   return page.getByTestId(TOAST).evaluate((toast) => {
@@ -29,17 +84,17 @@ test.describe("Toast", () => {
   });
 
   test("sits above an open modal", async ({ page }) => {
-    await hook(page, "presentTestInvitation");
+    await callRiverTest(page, "presentTestInvitation");
     await expect(page.getByTestId("receive-invitation-modal")).toBeVisible();
 
-    await hook(page, "showToast", "Joined Your Private Room");
+    await callRiverTest(page, "showToast", "Joined Your Private Room");
     await expect(page.getByTestId(TOAST)).toBeVisible();
     await page.waitForTimeout(300);
     expect(await toastIsOnTop(page), "the modal must not paint over it").toBe(true);
   });
 
   test("disappears on its own after about 5 seconds", async ({ page }) => {
-    await hook(page, "showToast", "Room joined");
+    await callRiverTest(page, "showToast", "Room joined");
     const toast = page.getByTestId(TOAST);
     await expect(toast).toBeVisible();
     const shownAt = Date.now();
@@ -55,14 +110,14 @@ test.describe("Toast", () => {
   });
 
   test("the close button dismisses it", async ({ page }) => {
-    await hook(page, "showToast", "Room joined");
+    await callRiverTest(page, "showToast", "Room joined");
     await expect(page.getByTestId(TOAST)).toBeVisible();
     await page.getByTestId("toast-dismiss").click();
     await expect(page.getByTestId(TOAST)).toHaveCount(0);
   });
 
   test("its action runs, then the toast closes", async ({ page }) => {
-    await hook(page, "showToast", "Archived conversation with Alice", true);
+    await callRiverTest(page, "showToast", "Archived conversation with Alice", true);
     const action = page.getByTestId("toast-action");
     await expect(action).toHaveText("Do it");
     await action.click();
@@ -72,9 +127,9 @@ test.describe("Toast", () => {
   });
 
   test("a newer toast replaces the older one", async ({ page }) => {
-    await hook(page, "showToast", "First");
+    await callRiverTest(page, "showToast", "First");
     await expect(page.getByTestId(TOAST)).toHaveText(/First/);
-    await hook(page, "showToast", "Second");
+    await callRiverTest(page, "showToast", "Second");
 
     await expect(page.getByTestId(TOAST)).toHaveCount(1);
     await expect(page.getByTestId(TOAST)).toHaveText(/Second/);
@@ -82,7 +137,7 @@ test.describe("Toast", () => {
 
   // Test persistence here rather than repeating the long wait in each join test.
   test("an error toast stays until it is closed", async ({ page }) => {
-    await hook(page, "showErrorToast", "Couldn't join the room: test");
+    await callRiverTest(page, "showErrorToast", "Couldn't join the room: test");
     const toast = page.getByTestId(TOAST);
     await expect(toast).toHaveAttribute("data-kind", "error");
 
@@ -95,12 +150,46 @@ test.describe("Toast", () => {
 
   test("reduced motion only fades it in", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await hook(page, "showToast", "Room joined");
-    const toast = page.getByTestId(TOAST);
-    await expect(toast).toBeVisible();
-    expect(await toast.evaluate((el) => getComputedStyle(el).animationName)).toBe(
-      "river-toast-fade-in"
+    const { count, duration, frames } = await showAndPauseEntrance(
+      page,
+      "showToast",
+      "Room joined"
     );
+    await expect(page.getByTestId(TOAST)).toBeVisible();
+
+    expect(count, "exactly one entrance animation").toBe(1);
+    expect(duration).toBe(150);
+    const [start, middle, end] = frames;
+    expect(start.opacity).toBe(0);
+    expect(middle.opacity).toBeGreaterThan(start.opacity);
+    expect(middle.opacity).toBeLessThan(1);
+    expect(end.opacity).toBe(1);
+    // A fade, not a slide: the card never moves while it comes in.
+    expect(new Set(frames.map((f) => `${f.x},${f.y}`)).size).toBe(1);
+  });
+
+  test("info and error toasts differ only by border colour", async ({ page }) => {
+    await callRiverTest(page, "showToast", "Room joined");
+    await expect(page.getByTestId(TOAST)).toHaveAttribute("data-kind", "info");
+    const info = await cardStyle(page);
+
+    await callRiverTest(page, "showErrorToast", "Couldn't join the room: test");
+    await expect(page.getByTestId(TOAST)).toHaveAttribute("data-kind", "error");
+    const error = await cardStyle(page);
+
+    expect(info.borderColor).toBe(await utilityBorderColor(page, "border border-border"));
+    expect(error.borderColor).toBe(
+      await utilityBorderColor(page, "border border-red-500/60")
+    );
+    expect(info.borderColor).not.toBe(error.borderColor);
+
+    const { borderColor: _i, ...infoShared } = info;
+    const { borderColor: _e, ...errorShared } = error;
+    expect(errorShared).toEqual(infoShared);
+    expect(infoShared.borderWidth).toBe("1px");
+    expect(infoShared.padding).toBe("8px 16px");
+    expect(infoShared.borderRadius).toBe("8px");
+    expect(infoShared.fontSize).toBe("14px");
   });
 });
 
@@ -117,7 +206,7 @@ for (const { label, viewport, isMobile } of [
     });
 
     test("shows centred at the top of the viewport", async ({ page }) => {
-      await hook(page, "showToast", "Archived conversation with Alice");
+      await callRiverTest(page, "showToast", "Archived conversation with Alice");
 
       const toast = page.getByTestId(TOAST);
       await expect(toast).toBeVisible();
@@ -140,7 +229,7 @@ for (const { label, viewport, isMobile } of [
       page,
     }) => {
       await openRoomWithComposer(page, isMobile);
-      await hook(page, "showToast", "Invitation to \"Your Private Room\" sent");
+      await callRiverTest(page, "showToast", "Invitation to \"Your Private Room\" sent");
       await expect(page.getByTestId(TOAST)).toBeVisible();
       await page.waitForTimeout(300);
 
@@ -162,7 +251,7 @@ test.describe("Toast (320px)", () => {
   test("a long message wraps inside the screen", async ({ page }) => {
     await page.goto("/");
     await waitForApp(page);
-    await hook(
+    await callRiverTest(
       page,
       "showErrorToast",
       "Couldn't join the room: room is at capacity (50/50 members); invitation cannot complete until an existing member leaves or is removed"

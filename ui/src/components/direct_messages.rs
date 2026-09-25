@@ -286,7 +286,7 @@ static DM_LAST_SEEN_SEEDED: GlobalSignal<bool> = Global::new(|| false);
 /// modal-specific names leaking.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SendDmOutcome {
-    /// Delta applied locally, `mark_needs_sync` queued, outbound cache
+    /// Delta applied locally, `mark_user_change` queued, outbound cache
     /// updated. The caller should clear its composer / close its modal.
     Sent,
     /// The room we tried to send in is no longer in `ROOMS` (unloaded).
@@ -336,7 +336,7 @@ pub enum SendDmOutcome {
 ///
 /// Returns an outcome the caller renders inline (no panicking, no
 /// `expect`). Side effects on `Sent`: writes to `ROOMS`, calls
-/// `mark_needs_sync`, calls `unhide_dm_thread`, persists outbound
+/// `mark_user_change`, calls `unhide_dm_thread`, persists outbound
 /// plaintext into the delegate-backed cache.
 ///
 /// **Plaintext stored in the outbound cache.** The cache key is
@@ -351,7 +351,7 @@ pub async fn send_structured_dm(
     body: river_core::room_state::dm_body::DirectMessageBody,
 ) -> SendDmOutcome {
     use crate::components::app::chat_delegate::{save_outbound_dm, unhide_dm_thread};
-    use crate::components::app::{mark_needs_sync, ROOMS};
+    use crate::components::app::ROOMS;
     use freenet_scaffold::ComposableState;
     use river_core::room_state::direct_messages::{compose_direct_message, DirectMessagesDelta};
     use river_core::room_state::{ChatRoomParametersV1, ChatRoomStateV1Delta};
@@ -527,11 +527,10 @@ pub async fn send_structured_dm(
         });
 
         if matches!(outcome, SendDmOutcome::Sent) {
-            crate::components::app::node_activity::await_room_update(
+            crate::components::app::user_actions::mark_user_change(
                 room,
                 crate::components::app::node_activity::ActionKind::Sending,
             );
-            mark_needs_sync(room);
             save_outbound_dm(
                 room,
                 self_id,

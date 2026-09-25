@@ -1,21 +1,9 @@
 import { test, expect, Page } from "@playwright/test";
-import { waitForApp } from "./example-room";
+import { waitForApp, openRoomWithComposer } from "./example-room";
 
 // The composer needs z-50 above its own click-catchers; z-40 modal backdrops
 // previously left it undimmed. elementFromPoint only finds the modal's
 // transparent wrapper, so use elementsFromPoint to inspect the paint order.
-
-const ROOM_NAME = "Public Discussion Room";
-
-async function selectRoom(page: Page) {
-  const roomBtn = page.getByRole("button", { name: ROOM_NAME });
-  await expect(roomBtn).toBeVisible({ timeout: 5_000 });
-  await roomBtn.click();
-  await expect(page.getByRole("heading", { name: ROOM_NAME })).toBeVisible({
-    timeout: 5_000,
-  });
-  await expect(page.getByTestId("message-composer")).toBeVisible();
-}
 
 // Sample near the composer's edge to avoid the modal card.
 async function backdropIsAboveComposer(page: Page, backdropTestId: string) {
@@ -40,7 +28,7 @@ test.describe("Modal backdrop covers the message composer", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
     await waitForApp(page);
-    await selectRoom(page);
+    await openRoomWithComposer(page, false);
   });
 
   test("invite-member modal", async ({ page }) => {

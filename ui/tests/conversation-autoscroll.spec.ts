@@ -171,6 +171,33 @@ async function readerScrollsWithoutGesture(page: Page, top: number) {
   }, top);
 }
 
+/// The same, returning only once the scroll has SETTLED.
+///
+/// The pin is re-measured on `scrollend`, not on the scroll itself, so the
+/// geometry reads as "at the bottom" before the settle handler has re-armed
+/// anything. A message delivered in that gap races the handler and exercises
+/// nothing: on WebKit about 1 run in 8 rendered the arrival first and stopped
+/// 98px short. The app's listener was registered long before this one, so
+/// by the time ours fires its settle has already run.
+async function readerScrollsWithoutGestureAndSettles(page: Page, top: number) {
+  await page.evaluate(async (t) => {
+    const el = document.getElementById("chat-scroll-container")!;
+    const settled = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("the scroll never settled")), 5_000);
+      el.addEventListener(
+        "scrollend",
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        { once: true }
+      );
+    });
+    el.scrollTop = t;
+    await settled;
+  }, top);
+}
+
 /// Hold for a moment and assert the view did not move.
 ///
 /// Compares `scrollTop` rather than distance-from-bottom: distance also moves
@@ -329,7 +356,7 @@ test.describe("Conversation follows new messages (#486)", () => {
     // suite that only used the button would still pass if the re-arm branch
     // were narrowed to, say, `distance <= 0`, and a reader who stopped a few
     // fractional pixels short would never be followed again.
-    await readerScrollsWithoutGesture(page, await historyHeight(page));
+    await readerScrollsWithoutGestureAndSettles(page, await historyHeight(page));
     await expectSettledAtBottom(page, "the reader's own scroll should reach the bottom");
     await deliver(page, "arrived after the reader scrolled back down");
     await expectSettledAtBottom(

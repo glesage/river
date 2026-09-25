@@ -16,7 +16,7 @@ use crate::components::members::{
 use crate::room_data::{NotificationMode, SendMessageError};
 use crate::util::confusable::{ImpersonationChecker, ImpersonationWarning};
 use crate::util::display_name::{display_nickname, sanitize_display_name};
-use crate::util::ecies::{encrypt_with_symmetric_key, unseal_bytes_with_secrets};
+use crate::util::ecies::{encrypt_with_symmetric_key, unseal_text_or_placeholder};
 use crate::util::{
     date_separator_labels, format_utc_as_full_datetime, format_utc_as_local_time,
     get_current_system_time, local_message_date, local_today,
@@ -2613,10 +2613,7 @@ pub fn Conversation() -> Element {
                         .display
                         .description
                         .as_ref()?;
-                    let text = match unseal_bytes_with_secrets(sealed_desc, &room_data.secrets) {
-                        Ok(bytes) => String::from_utf8_lossy(&bytes).to_string(),
-                        Err(_) => sealed_desc.to_string_lossy(),
-                    };
+                    let text = unseal_text_or_placeholder(sealed_desc, &room_data.secrets);
                     if text.is_empty() {
                         return None;
                     }
@@ -3341,11 +3338,10 @@ pub fn Conversation() -> Element {
                                 }
                             });
                             if reaction_applied {
-                                crate::components::app::node_activity::await_room_update(
+                                crate::components::app::user_actions::mark_user_change(
                                     current_room,
                                     crate::components::app::node_activity::ActionKind::Sending,
                                 );
-                                crate::components::app::mark_needs_sync(current_room);
                             }
                         });
                     }
@@ -3455,11 +3451,10 @@ pub fn Conversation() -> Element {
                             }
                         });
                         if delete_applied {
-                            crate::components::app::node_activity::await_room_update(
+                            crate::components::app::user_actions::mark_user_change(
                                 current_room,
                                 crate::components::app::node_activity::ActionKind::Sending,
                             );
-                            crate::components::app::mark_needs_sync(current_room);
                         }
                     });
                 });
@@ -3594,11 +3589,10 @@ pub fn Conversation() -> Element {
                             }
                         });
                         if edit_applied {
-                            crate::components::app::node_activity::await_room_update(
+                            crate::components::app::user_actions::mark_user_change(
                                 current_room,
                                 crate::components::app::node_activity::ActionKind::Sending,
                             );
-                            crate::components::app::mark_needs_sync(current_room);
                         }
                     });
                 });
@@ -3844,12 +3838,11 @@ pub fn Conversation() -> Element {
                             if CURRENT_ROOM.peek().owner_key == Some(current_room) {
                                 force_scroll.set(true);
                             }
-                            crate::components::app::node_activity::await_room_update(
+                            crate::util::debug_log("[send] marking NEEDS_SYNC");
+                            crate::components::app::user_actions::mark_user_change(
                                 current_room,
                                 crate::components::app::node_activity::ActionKind::Sending,
                             );
-                            crate::util::debug_log("[send] marking NEEDS_SYNC");
-                            crate::components::app::mark_needs_sync(current_room);
                             #[cfg(target_arch = "wasm32")]
                             request_permission_on_first_message();
                         }
@@ -5659,6 +5652,7 @@ fn MessageGroupComponent(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::util::source_scan::css_rule_body;
 
     /// Source-grep pin: the message-action handlers must LOOK UP the open
     /// room's data when they run, never CAPTURE it.
@@ -6661,25 +6655,6 @@ mod tests {
             "`> …` must render as a <blockquote> for the blockquote CSS to \
              apply: {html}"
         );
-    }
-
-    /// Extract the declaration body of a CSS rule by its exact selector text.
-    ///
-    /// Anchored on a LINE START (`"\n{selector} {{"`), not a bare substring:
-    /// `.prose blockquote {` is a suffix of `.bg-accent .prose blockquote {`,
-    /// so a substring search would silently return the wrong rule's body if
-    /// the two were ever reordered in the file.
-    fn css_rule_body<'a>(css: &'a str, selector: &str) -> &'a str {
-        let needle = format!("\n{selector} {{");
-        let start = css
-            .find(&needle)
-            .unwrap_or_else(|| panic!("tailwind.css should contain a `{selector}` rule"))
-            + needle.len();
-        let end = start
-            + css[start..]
-                .find('}')
-                .unwrap_or_else(|| panic!("`{selector}` rule should be closed"));
-        &css[start..end]
     }
 
     /// A quote inside the local user's own bubble must take the bubble's own

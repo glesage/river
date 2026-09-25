@@ -554,11 +554,10 @@ impl RoomData {
 
     /// Falls back to the encrypted placeholder until the room secret is available.
     pub fn display_name(&self) -> String {
-        let sealed = &self.room_state.configuration.configuration.display.name;
-        match crate::util::ecies::unseal_bytes_with_secrets(sealed, &self.secrets) {
-            Ok(bytes) => String::from_utf8_lossy(&bytes).to_string(),
-            Err(_) => sealed.to_string_lossy(),
-        }
+        crate::util::ecies::unseal_text_or_placeholder(
+            &self.room_state.configuration.configuration.display.name,
+            &self.secrets,
+        )
     }
 
     /// Get the current (latest) secret for encryption/decryption
@@ -5300,6 +5299,36 @@ mod tests {
             .to_string_lossy();
         assert!(expected_placeholder.starts_with("[Encrypted:"));
         assert_eq!(room.display_name(), expected_placeholder);
+    }
+
+    // Notifications decode with the secrets captured for their batch, which
+    // can differ from the room's live map in either direction.
+    #[test]
+    fn a_supplied_secret_snapshot_is_used_instead_of_the_rooms_secrets() {
+        use crate::util::ecies::unseal_text_or_placeholder;
+        let mut rng = rand::thread_rng();
+        let owner_sk = SigningKey::generate(&mut rng);
+        let member_sk = SigningKey::generate(&mut rng);
+        let mut room = make_private_owner_room(&owner_sk, &member_sk);
+        let (secret, version) = room
+            .get_secret()
+            .map(|(s, v)| (*s, v))
+            .expect("private room fixture seeds a v0 secret");
+        let name = &mut room.room_state.configuration.configuration.display.name;
+        *name = seal_bytes(b"Secret Room", &secret, version);
+        let name = name.clone();
+
+        let snapshot = room.secrets.clone();
+        room.secrets.clear();
+        assert_eq!(unseal_text_or_placeholder(&name, &snapshot), "Secret Room");
+        assert_ne!(room.display_name(), "Secret Room");
+
+        room.secrets = snapshot;
+        assert_eq!(
+            unseal_text_or_placeholder(&name, &HashMap::new()),
+            name.to_string_lossy()
+        );
+        assert_eq!(room.display_name(), "Secret Room");
     }
 
     /// Regression test for freenet/river#310: in a private room, an edited

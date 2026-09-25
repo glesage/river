@@ -81,11 +81,10 @@ pub fn DeputyButton(
             });
 
             if applied {
-                crate::components::app::node_activity::await_room_update(
+                crate::components::app::user_actions::mark_user_change(
                     current_room,
                     crate::components::app::node_activity::ActionKind::Saving,
                 );
-                crate::components::app::mark_needs_sync(current_room);
             }
             // Close the modal either way.
             MEMBER_INFO_MODAL.with_mut(|modal| {

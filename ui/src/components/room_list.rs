@@ -173,20 +173,6 @@ fn format_build_time_local() -> String {
     }
 }
 
-// Call after the room-order mutation.
-fn spawn_room_order_save() {
-    spawn(async move {
-        let saved = crate::components::app::node_activity::track(
-            crate::components::app::node_activity::ActionKind::Saving,
-            save_rooms_to_delegate(),
-        )
-        .await;
-        if let Err(e) = saved {
-            error!("Failed to save room order: {}", e);
-        }
-    });
-}
-
 #[component]
 pub fn RoomList() -> Element {
     let mut import_modal_active = use_signal(|| false);
@@ -561,7 +547,7 @@ pub fn RoomList() -> Element {
                                     if let Some(src) = src {
                                         if src != room_key {
                                             ROOMS.with_mut(|rooms| rooms.move_room(src, room_key));
-                                            spawn_room_order_save();
+                                            crate::components::app::user_actions::spawn_user_rooms_save("room order");
                                         }
                                     }
                                 });
@@ -675,7 +661,7 @@ pub fn RoomList() -> Element {
                                             // the button is also `disabled` there.
                                             crate::util::defer(move || {
                                                 ROOMS.with_mut(|rooms| rooms.move_room_up(room_key));
-                                                spawn_room_order_save();
+                                                crate::components::app::user_actions::spawn_user_rooms_save("room order");
                                             });
                                         },
                                         Icon { width: 14, height: 14, icon: FaChevronUp }
@@ -698,7 +684,7 @@ pub fn RoomList() -> Element {
                                             evt.stop_propagation();
                                             crate::util::defer(move || {
                                                 ROOMS.with_mut(|rooms| rooms.move_room_down(room_key));
-                                                spawn_room_order_save();
+                                                crate::components::app::user_actions::spawn_user_rooms_save("room order");
                                             });
                                         },
                                         Icon { width: 14, height: 14, icon: FaChevronDown }
@@ -744,7 +730,7 @@ pub fn RoomList() -> Element {
                                 dragged_room.set(None);
                                 if let Some(src) = src {
                                     ROOMS.with_mut(|rooms| rooms.move_room_to_end(src));
-                                    spawn_room_order_save();
+                                    crate::components::app::user_actions::spawn_user_rooms_save("room order");
                                 }
                             });
                         },

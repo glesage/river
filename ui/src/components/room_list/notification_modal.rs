@@ -12,13 +12,11 @@
 //! soft-syncs across the user's devices (local-wins merge in `reconcile_meta`),
 //! so the help text says "your devices", not "this device only".
 
-use crate::components::app::chat_delegate::save_rooms_to_delegate;
 use crate::components::app::notifications::{
     current_notification_status, permission_notice, request_enable_now,
 };
 use crate::components::app::{NOTIFICATION_MODAL, ROOMS};
 use crate::room_data::NotificationMode;
-use dioxus::logger::tracing::error;
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::fa_solid_icons::{FaAt, FaBell, FaBellSlash, FaCheck, FaXmark};
 use dioxus_free_icons::Icon;
@@ -62,16 +60,7 @@ fn set_mode(room_vk: VerifyingKey, mode: NotificationMode) {
         ROOMS.with_mut(|rooms| {
             rooms.notification_modes.insert(room_vk, mode);
         });
-        spawn(async move {
-            let saved = crate::components::app::node_activity::track(
-                crate::components::app::node_activity::ActionKind::Saving,
-                save_rooms_to_delegate(),
-            )
-            .await;
-            if let Err(e) = saved {
-                error!("Failed to save notification mode: {}", e);
-            }
-        });
+        crate::components::app::user_actions::spawn_user_rooms_save("notification mode");
         // Close the modal after applying, so a pick is one click.
         NOTIFICATION_MODAL.write().room = None;
     });

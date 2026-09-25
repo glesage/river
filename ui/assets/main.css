@@ -242,7 +242,7 @@
     height: 14px;
     pointer-events: none;
 
-    animation: river-flow-in 150ms ease-out;
+    animation: river-fade-in 150ms ease-out;
 }
 
 /* Stay below the scroll-to-latest button (z-30) and modal backdrops. */
@@ -281,8 +281,10 @@
         var(--swell-delay, 0s);
 }
 
-@keyframes river-flow-in {
+/* Shared by the wave entrance and the reduced-motion toast entrance. */
+@keyframes river-fade-in {
     from { opacity: 0; }
+    to   { opacity: 1; }
 }
 
 @keyframes river-flow-wave {
@@ -308,12 +310,16 @@
     50%      { opacity: 1; }
 }
 
-/* Keep mounted for fade-out; animating width also shifts the pill's centred label. */
-.pill-activity {
+.pill-activity,
+.small-dots {
     display: inline-flex;
     align-items: center;
     gap: 2px;
     height: 8px;
+}
+
+/* Keep mounted for fade-out; animating width also shifts the pill's centred label. */
+.pill-activity {
     overflow: hidden;
     width: 0;
     margin-left: 0;
@@ -362,10 +368,6 @@
 
 
 .small-dots {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    height: 8px;
     flex-shrink: 0;
 }
 
@@ -390,13 +392,8 @@
     to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
-@keyframes river-toast-fade-in {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-}
-
 @media (prefers-reduced-motion: reduce) {
     .river-toast {
-        animation: river-toast-fade-in 150ms ease-out;
+        animation: river-fade-in 150ms ease-out;
     }
 }

@@ -1,8 +1,7 @@
 use super::room_name_field::RoomNameField;
-use crate::components::app::chat_delegate::save_rooms_to_delegate;
 use crate::components::app::{CURRENT_ROOM, EDIT_ROOM_MODAL, ROOMS};
 use crate::room_data::RoomData;
-use crate::util::ecies::{seal_for_room, unseal_bytes_with_secrets};
+use crate::util::ecies::{seal_for_room, unseal_text_or_placeholder};
 use dioxus::logger::tracing::{error, info, warn};
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::fa_solid_icons::FaCopy;
@@ -368,11 +367,10 @@ pub fn EditRoomModal() -> Element {
                                                                     }
                                                                 });
                                                                 if applied {
-                                                                    crate::components::app::node_activity::await_room_update(
+                                                                    crate::components::app::user_actions::mark_user_change(
                                                                         owner_vk,
                                                                         crate::components::app::node_activity::ActionKind::Saving,
                                                                     );
-                                                                    crate::components::app::mark_needs_sync(owner_vk);
                                                                 }
                                                             });
                                                         },
@@ -436,16 +434,9 @@ pub fn EditRoomModal() -> Element {
                                                     // Save updated rooms (including the tombstone)
                                                     // to delegate storage.
                                                     info!("Room removed, saving to delegate");
-                                                    spawn(async move {
-                                                        let saved = crate::components::app::node_activity::track(
-                                                            crate::components::app::node_activity::ActionKind::Saving,
-                                                            save_rooms_to_delegate(),
-                                                        )
-                                                        .await;
-                                                        if let Err(e) = saved {
-                                                            error!("Failed to save rooms after removal: {}", e);
-                                                        }
-                                                    });
+                                                    crate::components::app::user_actions::spawn_user_rooms_save(
+                                                        "rooms after removal",
+                                                    );
                                                 });
                                             }
                                             // Reset confirmation state regardless
@@ -570,10 +561,7 @@ fn stored_description(config: &Configuration) -> String {
         .display
         .description
         .as_ref()
-        .map(|sealed| match unseal_bytes_with_secrets(sealed, &secrets) {
-            Ok(bytes) => String::from_utf8_lossy(&bytes).to_string(),
-            Err(_) => sealed.to_string_lossy(),
-        })
+        .map(|sealed| unseal_text_or_placeholder(sealed, &secrets))
         .unwrap_or_default()
 }
 
@@ -974,11 +962,10 @@ pub(super) fn sign_and_apply_configuration(
                 }
             });
             if applied {
-                crate::components::app::node_activity::await_room_update(
+                crate::components::app::user_actions::mark_user_change(
                     owner_key,
                     crate::components::app::node_activity::ActionKind::Saving,
                 );
-                crate::components::app::mark_needs_sync(owner_key);
             }
         });
     });

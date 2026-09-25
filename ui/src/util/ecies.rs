@@ -46,9 +46,67 @@ pub fn seal_for_room(
     }
 }
 
+/// A sealed display field as text: the plaintext when `secrets` opens it,
+/// otherwise the encrypted placeholder. Uses exactly the secrets passed, so
+/// the caller chooses which snapshot applies.
+pub fn unseal_text_or_placeholder(
+    sealed: &SealedBytes,
+    secrets: &std::collections::HashMap<u32, [u8; 32]>,
+) -> String {
+    match unseal_bytes_with_secrets(sealed, secrets) {
+        Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+        Err(_) => sealed.to_string_lossy(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn public_text_needs_no_secret() {
+        let sealed = SealedBytes::public(b"Lobby".to_vec());
+        assert_eq!(
+            unseal_text_or_placeholder(&sealed, &HashMap::new()),
+            "Lobby"
+        );
+    }
+
+    #[test]
+    fn private_text_opens_with_its_version() {
+        let sealed = seal_bytes(b"Lobby", &[5; 32], 2);
+        let secrets = HashMap::from([(1, [1; 32]), (2, [5; 32])]);
+        assert_eq!(unseal_text_or_placeholder(&sealed, &secrets), "Lobby");
+    }
+
+    #[test]
+    fn a_missing_or_wrong_secret_shows_the_placeholder() {
+        let sealed = seal_bytes(b"Lobby", &[5; 32], 2);
+        let placeholder = sealed.to_string_lossy();
+        assert!(placeholder.starts_with("[Encrypted:"), "{placeholder}");
+        for secrets in [
+            HashMap::new(),
+            HashMap::from([(1, [5; 32])]),
+            HashMap::from([(2, [6; 32])]),
+        ] {
+            assert_eq!(unseal_text_or_placeholder(&sealed, &secrets), placeholder);
+        }
+    }
+
+    #[test]
+    fn invalid_utf8_is_replaced_not_rejected() {
+        let bytes = vec![b'a', 0xFF, b'b'];
+        assert_eq!(
+            unseal_text_or_placeholder(&SealedBytes::public(bytes.clone()), &HashMap::new()),
+            "a\u{FFFD}b"
+        );
+        let sealed = seal_bytes(&bytes, &[5; 32], 0);
+        assert_eq!(
+            unseal_text_or_placeholder(&sealed, &HashMap::from([(0, [5; 32])])),
+            "a\u{FFFD}b"
+        );
+    }
 
     #[test]
     fn public_room_with_no_secret_returns_public_sealed() {

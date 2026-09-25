@@ -127,14 +127,15 @@ pub fn ToastHost() -> Element {
 fn ToastCard(toast: Toast) -> Element {
     let id = toast.id;
     let is_error = toast.kind == ToastKind::Error;
-    let card_class = if is_error {
-        "river-toast bg-panel text-text border border-red-500/60 rounded-lg shadow-lg px-4 py-2 text-sm"
+    // Whole utility names, so Tailwind's source scan finds both.
+    let border_class = if is_error {
+        "border-red-500/60"
     } else {
-        "river-toast bg-panel text-text border border-border rounded-lg shadow-lg px-4 py-2 text-sm"
+        "border-border"
     };
     rsx! {
         div {
-            class: card_class,
+            class: "river-toast bg-panel text-text border {border_class} rounded-lg shadow-lg px-4 py-2 text-sm",
             "data-testid": "toast",
             "data-kind": if is_error { "error" } else { "info" },
             if is_error {
@@ -223,8 +224,7 @@ mod tests {
     #[test]
     fn the_toast_sits_at_the_top_above_the_modals() {
         let css = include_str!("../../assets/main.css");
-        let rule = &css[css.find(".river-toast {").expect(".river-toast rule")..];
-        let rule = &rule[..rule.find('}').unwrap()];
+        let rule = crate::util::source_scan::css_rule_body(css, ".river-toast");
         assert!(rule.contains("position: fixed;"), "{rule}");
         assert!(
             rule.contains("top: max(1rem, env(safe-area-inset-top));"),

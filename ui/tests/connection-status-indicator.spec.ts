@@ -1,4 +1,6 @@
 import { test, expect, Locator, Page } from "@playwright/test";
+import { waitForApp } from "./example-room";
+import { callRiverTest } from "./river-test";
 
 // Regression tests for Bug #5 (Ivvor, Matrix 2026-05-17): the WebSocket
 // connection indicator must remain visible when the user has no rooms —
@@ -31,12 +33,11 @@ const ROOMS_RAIL = '[data-testid="rooms-rail"]';
 const MEMBERS_RAIL = '[data-testid="members-rail"]';
 
 // Wait for the app shell AND the always-rendered Rooms rail to mount.
-// (#274 item 3) The previous `"aside, .app-root button"` selector matched
-// any button anywhere in the app, so it could resolve before the rail —
-// which carries the persistent indicator — actually rendered. Anchor on
-// the rail's stable testid instead.
-async function waitForApp(page: Page) {
-  await page.waitForSelector(".app-root", { timeout: 30_000 });
+// (#274 item 3) The shared `waitForApp` matches any button anywhere in the
+// app, so it can resolve before the rail — which carries the persistent
+// indicator — actually rendered. Anchor on the rail's stable testid as well.
+async function waitForAppAndRail(page: Page) {
+  await waitForApp(page);
   await expect(page.locator(ROOMS_RAIL)).toHaveCount(1);
 }
 
@@ -95,19 +96,13 @@ async function expectCoherentState(visiblePill: Locator) {
 }
 
 
-async function setSyncStatus(page: Page, state: string) {
-  await page.evaluate((s) => {
-    (window as any).__riverTest.setSyncStatus(s);
-  }, state);
-}
-
 test.describe("Connection status indicator on desktop (Bug #5)", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
   test("an error shows only its message", async ({ page }) => {
     await page.goto("/");
-    await waitForApp(page);
-    await setSyncStatus(page, "error");
+    await waitForAppAndRail(page);
+    await callRiverTest(page, "setSyncStatus", "error");
 
 
     const pill = page.locator(VISIBLE_PILL);
@@ -120,7 +115,7 @@ test.describe("Connection status indicator on desktop (Bug #5)", () => {
 
   test("exactly one indicator is visible on initial load", async ({ page }) => {
     await page.goto("/");
-    await waitForApp(page);
+    await waitForAppAndRail(page);
 
     // (#274 item 1) Exactly ONE pill is visible at desktop width — the
     // left-rail copy. The Welcome-screen inline copy is `md:hidden`, so a
@@ -149,7 +144,7 @@ test.describe("Connection status indicator on desktop (Bug #5)", () => {
     // width sits inside the always-rendered Rooms rail so the no-room
     // state can't hide it.
     await page.goto("/");
-    await waitForApp(page);
+    await waitForAppAndRail(page);
 
     await expect(page.locator(VISIBLE_PILL)).toHaveCount(1);
 
@@ -173,7 +168,7 @@ test.describe("Connection status indicator on desktop (Bug #5)", () => {
     // / blank (e.g. swapping the reactive `try_read()` for `peek()`) would
     // fail to render a matching colour+label pair.
     await page.goto("/");
-    await waitForApp(page);
+    await waitForAppAndRail(page);
 
     const visiblePill = page.locator(VISIBLE_PILL);
     await expect(visiblePill).toHaveCount(1);
@@ -186,7 +181,7 @@ test.describe("Connection status indicator on desktop (Bug #5)", () => {
     // Initial load has `CURRENT_ROOM = None` — the conversation panel
     // renders "Welcome to River". The indicator must still be visible.
     await page.goto("/");
-    await waitForApp(page);
+    await waitForAppAndRail(page);
 
     await expect(page.getByText("Welcome to River")).toBeVisible({
       timeout: 5_000,
@@ -205,7 +200,7 @@ test.describe("Connection status indicator on desktop (Bug #5)", () => {
     // unnoticed. Selecting a room mounts the Members rail; assert the pill
     // count stays at one and stays in the Rooms rail.
     await page.goto("/");
-    await waitForApp(page);
+    await waitForAppAndRail(page);
 
     await page.getByRole("button", { name: "Team Chat Room" }).click();
     await expect(
@@ -239,7 +234,7 @@ test.describe("Connection status indicator on mobile (Bug #5)", () => {
     page,
   }) => {
     await page.goto("/");
-    await waitForApp(page);
+    await waitForAppAndRail(page);
 
     await expect(page.getByText("Welcome to River")).toBeVisible({
       timeout: 5_000,
@@ -271,7 +266,7 @@ test.describe("Connection status indicator on mobile (Bug #5)", () => {
     // (#274 item 2) Same coherent-state check as desktop, against the
     // inline Welcome-screen copy that mobile users actually see.
     await page.goto("/");
-    await waitForApp(page);
+    await waitForAppAndRail(page);
 
     await expect(page.getByText("Welcome to River")).toBeVisible({
       timeout: 5_000,

@@ -1,17 +1,13 @@
 import { test, expect, Page } from "@playwright/test";
 import { waitForApp } from "./example-room";
 import { openInviteViaDmPicker } from "./invite-picker";
+import { callRiverTest } from "./river-test";
 
 // Test hooks expose states unavailable in no-sync builds: room loading/migration,
 // an unsigned room awaiting its first GET, and an invite send held in flight.
 // Without holdInviteSend, no-sync sends finish too quickly to observe.
 
 const SPINNER = ".animate-spin";
-
-async function hook(page: Page, name: string, arg?: string) {
-  await page.evaluate(({ name, arg }) => (window as any).__riverTest[name](arg), { name, arg });
-}
-
 
 async function expectWaveDots(page: Page, testid: string) {
   const dots = page.getByTestId(testid);
@@ -26,6 +22,25 @@ async function expectSmallDots(page: Page, scope: ReturnType<Page["locator"]>, t
   await expect(dots).toBeVisible();
   const dot = dots.locator(".pill-activity-dot");
   await expect(dot).toHaveCount(5);
+  // The container shares the pill's layout but must never collapse like it.
+  const layout = await dots.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return {
+      display: style.display,
+      alignItems: style.alignItems,
+      gap: style.gap,
+      height: style.height,
+      flexShrink: style.flexShrink,
+    };
+  });
+  // Every host is a flex item, which blockifies inline-flex to flex.
+  expect(layout.display).toMatch(/^(inline-)?flex$/);
+  expect(layout).toMatchObject({
+    alignItems: "center",
+    gap: "2px",
+    height: "8px",
+    flexShrink: "0",
+  });
   const { color, accent, playing } = await dot.first().evaluate((el) => {
     const probe = document.createElement("span");
     probe.className = "text-accent";
@@ -56,9 +71,9 @@ for (const { label, viewport, isMobile } of [
       await waitForApp(page);
     });
 
-    for (const state of ["loading", "migrating"]) {
+    for (const state of ["loading", "migrating"] as const) {
       test(`${state} rooms show wave dots, not a spinner`, async ({ page }) => {
-        await hook(page, "setRoomsLoadState", state);
+        await callRiverTest(page, "setRoomsLoadState", state);
         await expectWaveDots(page, `conversation-rooms-${state}-dots`);
         if (!isMobile) {
           // Below 768px the rail is display:none.
@@ -71,7 +86,7 @@ for (const { label, viewport, isMobile } of [
       page,
     }) => {
       const ROOM = "Your Private Room";
-      await hook(page, "awaitRoomSync", ROOM);
+      await callRiverTest(page, "awaitRoomSync", ROOM);
       if (isMobile) {
         await page.getByTestId("hamburger-rooms-button").click();
       }
@@ -91,7 +106,7 @@ for (const { label, viewport, isMobile } of [
 
       await openInviteViaDmPicker(page);
 
-      await hook(page, "holdInviteSend");
+      await callRiverTest(page, "holdInviteSend");
       const footer = page.getByText("Sending invite…");
       await expect(footer).toBeVisible();
       await expectSmallDots(page, page.locator("body"), "invite-sending-dots");

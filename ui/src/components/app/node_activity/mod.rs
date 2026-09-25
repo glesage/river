@@ -329,31 +329,68 @@ mod tests {
         let mut checked = 0;
         for (name, src) in files {
             let src = strip_line_comments(production_only(src));
-            let marks: Vec<usize> = src
-                .match_indices("mark_needs_sync(")
-                .map(|(i, _)| i)
-                .collect();
-            assert!(
-                !marks.is_empty(),
-                "{name}: no mark_needs_sync found; is the pin stale?"
-            );
-            let mut previous = 0;
-            for mark in marks {
-                let window = &src[previous..mark];
+            let changes = src.matches("user_actions::mark_user_change(").count();
+            assert!(changes > 0, "{name}: no mark_user_change found; is the pin stale?");
+            for primitive in ["mark_needs_sync(", "node_activity::await_room_update("] {
                 assert!(
-                    window.contains("node_activity::await_room_update("),
-                    "{name}: a mark_needs_sync at byte {mark} has no \
-                     node_activity::await_room_update before it"
+                    !src.contains(primitive),
+                    "{name}: calls {primitive} directly; route user changes \
+                     through user_actions::mark_user_change"
                 );
-                previous = mark + 1;
-                checked += 1;
             }
+            checked += changes;
         }
         assert_eq!(
             checked, 13,
             "expected exactly the 13 known user room changes; update this \
              deliberately if you added or removed one"
         );
+
+        let helpers = strip_line_comments(production_only(include_str!("../user_actions.rs")));
+        let helper = fn_body(&helpers, "pub fn mark_user_change(");
+        let awaited = helper
+            .find("node_activity::await_room_update(")
+            .expect("mark_user_change must register the UPDATE wait");
+        let synced = helper
+            .find("mark_needs_sync(")
+            .expect("mark_user_change must hand the change to the sync");
+        assert!(awaited < synced, "register the wait before the UPDATE is sent");
+        assert!(
+            !helper.contains("defer("),
+            "both primitives defer already; an outer defer would reorder them"
+        );
+    }
+
+    // Response and repair paths re-sync on their own; showing them as a user
+    // wait would light the composer indicator for background work.
+    #[test]
+    fn background_syncs_stay_untracked() {
+        for (name, src) in [
+            ("app.rs", include_str!("../../app.rs")),
+            ("members.rs", include_str!("../../members.rs")),
+            (
+                "create_room_modal.rs",
+                include_str!("../../room_list/create_room_modal.rs"),
+            ),
+            (
+                "response_handler.rs",
+                include_str!("../freenet_api/response_handler.rs"),
+            ),
+            (
+                "get_response.rs",
+                include_str!("../freenet_api/response_handler/get_response.rs"),
+            ),
+        ] {
+            let src = strip_line_comments(production_only(src));
+            assert!(
+                src.contains("mark_needs_sync("),
+                "{name}: no mark_needs_sync found; is the pin stale?"
+            );
+            assert!(
+                !src.contains("mark_user_change("),
+                "{name}: background syncs must not register a user wait"
+            );
+        }
     }
 
     // The room-change pin counts the shared helper once; also check its callers.
@@ -386,19 +423,13 @@ mod tests {
             .find("if applied")
             .expect("the deferred apply must branch on whether the delta applied");
         assert!(
-            !apply[..gate].contains("mark_needs_sync("),
+            !apply[..gate].contains("mark_user_change("),
             "a failed apply must not reach the sync"
         );
         let applied = fn_body(&apply[gate..], "if applied");
-        let awaited = applied
-            .find("node_activity::await_room_update(")
-            .expect("a successful apply must await its UPDATE");
-        let synced = applied
-            .find("mark_needs_sync(")
-            .expect("a successful apply must hand the change to the sync");
         assert!(
-            awaited < synced,
-            "register the wait before the UPDATE is sent"
+            applied.contains("user_actions::mark_user_change("),
+            "a successful apply must hand the change to the sync and await its UPDATE"
         );
 
         for (name, src, component) in [
@@ -414,7 +445,7 @@ mod tests {
                 "{name} {component}: must save through {helper}"
             );
             assert!(
-                !body.contains("sign_config_with_fallback(") && !body.contains("mark_needs_sync("),
+                !body.contains("sign_config_with_fallback(") && !body.contains("mark_user_change("),
                 "{name} {component}: signs or syncs on its own again"
             );
         }
@@ -469,20 +500,15 @@ mod tests {
                 include_str!("../../direct_messages/invite_via_dm_picker_modal.rs"),
                 1,
             ),
-            (
-                "notification_modal.rs",
-                include_str!("../../room_list/notification_modal.rs"),
-                1,
-            ),
-            // Four reorder sites share one save helper.
-            ("room_list.rs", include_str!("../../room_list.rs"), 1),
+            // Explicit room saves share one tracked helper.
+            ("user_actions.rs", include_str!("../user_actions.rs"), 1),
             ("members.rs", include_str!("../../members.rs"), 1),
-            // Leaving the room, and the shared configuration save (which
-            // also serves room_name_field.rs).
+            // The shared configuration save, which also serves
+            // room_name_field.rs.
             (
                 "edit_room_modal.rs",
                 include_str!("../../room_list/edit_room_modal.rs"),
-                2,
+                1,
             ),
             (
                 "ban_button.rs",
@@ -501,17 +527,74 @@ mod tests {
             );
         }
 
-        let room_list = strip_line_comments(production_only(include_str!("../../room_list.rs")));
+        // Signing an invitation is the user's wait; each caller classifies it.
+        for (name, src, owner, kind) in [
+            (
+                "invite_member_modal.rs",
+                include_str!("../../members/invite_member_modal.rs"),
+                "async fn create_invitation(",
+                "ActionKind::Saving",
+            ),
+            (
+                "invite_via_dm_picker_modal.rs",
+                include_str!("../../direct_messages/invite_via_dm_picker_modal.rs"),
+                "async fn drive_send(",
+                "ActionKind::Sending",
+            ),
+        ] {
+            let src = strip_line_comments(production_only(src));
+            let body = fn_body(&src, owner);
+            let tracked = body
+                .find("node_activity::track(")
+                .expect("the invitation must be built under a guard");
+            let built = body
+                .find("invitation_builder::create_invitation(")
+                .unwrap_or_else(|| panic!("{name}: must build through invitation_builder"));
+            assert!(tracked < built, "{name}: the guard must wrap the builder");
+            assert!(body[tracked..built].contains(kind), "{name}: expected {kind}");
+            assert!(
+                !body.contains("sign_member_with_fallback("),
+                "{name}: signs the invitee on its own again"
+            );
+        }
+        let builder = strip_line_comments(production_only(include_str!(
+            "../../members/invitation_builder.rs"
+        )));
         assert!(
-            fn_body(&room_list, "fn spawn_room_order_save(").contains("node_activity::track("),
-            "spawn_room_order_save must hold the Saving guard"
+            !builder.contains("node_activity::"),
+            "the builder must leave activity tracking to its callers"
         );
+
+        let helpers = strip_line_comments(production_only(include_str!("../user_actions.rs")));
+        let save = fn_body(&helpers, "pub fn spawn_user_rooms_save(");
         assert_eq!(
-            room_list.matches("spawn_room_order_save();").count(),
-            4,
-            "room_list.rs: expected the 4 reorder sites to save through \
-             spawn_room_order_save"
+            save.matches("node_activity::track(ActionKind::Saving, save_rooms_to_delegate())")
+                .count(),
+            1,
+            "spawn_user_rooms_save must make one save, under the Saving guard"
         );
+        // Four reorder sites, the notification mode, and leaving a room.
+        for (name, src, expected) in [
+            ("room_list.rs", include_str!("../../room_list.rs"), 4),
+            (
+                "notification_modal.rs",
+                include_str!("../../room_list/notification_modal.rs"),
+                1,
+            ),
+            (
+                "edit_room_modal.rs",
+                include_str!("../../room_list/edit_room_modal.rs"),
+                1,
+            ),
+        ] {
+            let src = strip_line_comments(production_only(src));
+            assert_eq!(
+                src.matches("user_actions::spawn_user_rooms_save(").count(),
+                expected,
+                "{name}: expected {expected} explicit room save(s) through \
+                 spawn_user_rooms_save"
+            );
+        }
 
         // chat_delegate.rs has a mid-file test module, so production_only would
         // exclude these helpers.

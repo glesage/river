@@ -5,6 +5,7 @@ pub mod node_activity;
 pub mod notifications;
 pub mod receive_times;
 pub mod sync_info;
+pub mod user_actions;
 
 use super::{conversation::Conversation, members::MemberList, room_list::RoomList};
 use crate::components::app::document_title::DocumentTitleUpdater;
@@ -70,8 +71,10 @@ pub static SYNCHRONIZER: GlobalSignal<FreenetSynchronizer> = Global::new(Freenet
 pub static WEB_API: GlobalSignal<Option<NodeApi>> = Global::new(|| None);
 pub static AUTH_TOKEN: GlobalSignal<Option<String>> = Global::new(|| None);
 
-// Tracks which rooms need to be synced due to USER actions (not network updates)
-// This prevents infinite loops where network responses trigger more syncs
+// Rooms with local changes awaiting sync. User changes that show progress go
+// through `user_actions::mark_user_change`; repairs from response paths and
+// untracked flows call `mark_needs_sync` directly. Merging a network update
+// alone must not mark a room, or responses would trigger endless syncs.
 pub static NEEDS_SYNC: GlobalSignal<std::collections::HashSet<VerifyingKey>> =
     Global::new(std::collections::HashSet::new);
 

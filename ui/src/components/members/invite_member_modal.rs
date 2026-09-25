@@ -1,11 +1,9 @@
 use crate::components::app::{CURRENT_ROOM, ROOMS};
-use crate::components::members::{collect_invitation_secrets, Invitation};
+use crate::components::members::Invitation;
 use crate::room_data::RoomData;
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::fa_solid_icons::{FaArrowsRotate, FaCopy, FaXmark};
 use dioxus_free_icons::Icon;
-use ed25519_dalek::SigningKey;
-use river_core::room_state::member::{AuthorizedMember, Member};
 
 /// Fallback URL for non-browser environments or when `window.location` is
 /// unavailable. This is ONLY reached off the browser (native/test builds) or
@@ -220,57 +218,19 @@ async fn create_invitation(room_data: Option<RoomData>) -> Result<Invitation, St
     // with the inviter's key, so this whole path needs the
     // private half. Surface it as a normal resource error (the
     // modal already renders `Err(String)`) rather than panicking.
-    let Some(self_sk) = room_data.signing_key().cloned() else {
+    let Some(self_sk) = room_data.signing_key() else {
         return Err(
             "The local signing key for this room is unavailable, so an invitation cannot be created."
                 .to_string(),
         );
     };
-    // Generate new signing key for invitee
-    let invitee_signing_key = SigningKey::generate(&mut rand::thread_rng());
-    let invitee_verifying_key = invitee_signing_key.verifying_key();
-
-    // Create member struct
-    let member = Member {
-        owner_member_id: room_data.owner_vk.into(),
-        invited_by: self_sk.verifying_key().into(),
-        member_vk: invitee_verifying_key,
-    };
-
-    // Serialize member to CBOR for signing
-    let mut member_bytes = Vec::new();
-    ciborium::ser::into_writer(&member, &mut member_bytes)
-        .map_err(|e| format!("Failed to serialize member: {}", e))?;
-
-    // Sign using delegate with fallback to local signing. The user
-    // waits on the node for this signature.
-    let signature = crate::components::app::node_activity::track(
+    // Signing the invitee's `Member` waits on the node.
+    crate::components::app::node_activity::track(
         crate::components::app::node_activity::ActionKind::Saving,
-        crate::signing::sign_member_with_fallback(room_data.room_key(), member_bytes, &self_sk),
+        crate::components::members::invitation_builder::create_invitation(&room_data, self_sk),
     )
-    .await;
-
-    // Create authorized member with pre-computed signature
-    let authorized_member = AuthorizedMember::with_signature(member, signature);
-
-    // For a private room, embed the room secrets the inviter
-    // holds so the invitee can decrypt the room immediately on
-    // join, without waiting for the owner delegate's
-    // `encrypted_secrets` back-fill. Empty for a public room,
-    // or if the inviter holds no secret yet (then the invitee
-    // falls back to that wait).
-    let room_secrets = if room_data.is_private() {
-        collect_invitation_secrets(&room_data.secrets)
-    } else {
-        Vec::new()
-    };
-
-    Ok(Invitation {
-        room: room_data.owner_vk,
-        invitee_signing_key,
-        invitee: authorized_member,
-        room_secrets,
-    })
+    .await
+    .map_err(|e| format!("Failed to serialize member: {}", e))
 }
 
 #[component]
@@ -407,5 +367,30 @@ fn InvitationContent(
                 "Close"
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::create_invitation;
+    use futures::executor::block_on;
+
+    // Both refusals return before the builder signs, so no node is needed.
+    #[test]
+    fn a_room_without_a_local_key_is_refused_before_signing() {
+        let owner = ed25519_dalek::SigningKey::from_bytes(&[3; 32]).verifying_key();
+        let mut room = crate::room_data::test_minimal_room_data(owner);
+        room.self_sk = None;
+        let refused = block_on(create_invitation(Some(room))).err();
+        assert!(
+            refused
+                .as_deref()
+                .is_some_and(|e| e.contains("local signing key for this room is unavailable")),
+            "got {refused:?}"
+        );
+        assert_eq!(
+            block_on(create_invitation(None)).err().as_deref(),
+            Some("No room selected")
+        );
     }
 }

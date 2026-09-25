@@ -10,7 +10,7 @@
 //! firing the destructive `purge_thread` flow.
 
 use crate::components::app::chat_delegate::{save_outbound_dm, unhide_dm_thread};
-use crate::components::app::{mark_needs_sync, ROOMS};
+use crate::components::app::ROOMS;
 use crate::components::direct_messages::{
     lookup_outbound_plaintext, mark_thread_read, open_invite_via_dm_picker,
     parse_outbound_invite_summary, DM_DRAFT, OPEN_DM_THREAD, OUTBOUND_DMS,
@@ -686,11 +686,10 @@ fn DmThreadModalBody(room: VerifyingKey, peer: MemberId) -> Element {
                 match outcome {
                     ApplyOutcome::Applied => {
                         info!("DM appended locally; marking room for sync");
-                        crate::components::app::node_activity::await_room_update(
+                        crate::components::app::user_actions::mark_user_change(
                             room,
                             crate::components::app::node_activity::ActionKind::Sending,
                         );
-                        mark_needs_sync(room);
                         // Bump the outbound-send counter so the
                         // auto-scroll effect notices the user just sent
                         // a message and snaps to the bottom (regardless
@@ -852,11 +851,10 @@ fn DmThreadModalBody(room: VerifyingKey, peer: MemberId) -> Element {
                     }
                 });
                 if applied {
-                    crate::components::app::node_activity::await_room_update(
+                    crate::components::app::user_actions::mark_user_change(
                         room,
                         crate::components::app::node_activity::ActionKind::Saving,
                     );
-                    mark_needs_sync(room);
                 } else {
                     send_error.set(Some(
                         "Couldn't delete those messages — something went wrong.".into(),

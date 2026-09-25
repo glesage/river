@@ -1,6 +1,8 @@
 //! Ungated loading visuals; callers control their lifetime.
 
 use dioxus::prelude::*;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 
 
 const WAVE_DOT_COUNT: usize = 10;
@@ -114,42 +116,24 @@ impl DotMotion {
 
 
 fn dot_motions(seed: u64) -> [DotMotion; WAVE_DOT_COUNT] {
-    let mut rng = SplitMix64(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     std::array::from_fn(|_| {
-        let swell_period_s = rng.range(SWELL_PERIOD_S);
+        let swell_period_s = rng.gen_range(SWELL_PERIOD_S.0..SWELL_PERIOD_S.1);
         DotMotion {
-            amp_px: rng.range(AMP_PX),
-            phase_jitter_s: rng.range((-PHASE_JITTER_S, PHASE_JITTER_S)),
-            ease: WAVE_EASES[(rng.next_u64() % WAVE_EASES.len() as u64) as usize],
-            swell_px: rng.range(SWELL_PX),
+            amp_px: rng.gen_range(AMP_PX.0..AMP_PX.1),
+            phase_jitter_s: rng.gen_range(-PHASE_JITTER_S..PHASE_JITTER_S),
+            ease: WAVE_EASES[rng.gen_range(0..WAVE_EASES.len())],
+            swell_px: rng.gen_range(SWELL_PX.0..SWELL_PX.1),
             swell_period_s,
-            swell_delay_s: -rng.range((0.0, swell_period_s)),
+            swell_delay_s: -rng.gen_range(0.0..swell_period_s),
         }
     })
-}
-
-
-struct SplitMix64(u64);
-
-impl SplitMix64 {
-    fn next_u64(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    /// Uniform in `[lo, hi)`.
-    fn range(&mut self, (lo, hi): (f64, f64)) -> f64 {
-        let unit = (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64;
-        lo + (hi - lo) * unit
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::util::source_scan::css_rule_body;
 
 
     #[test]
@@ -173,16 +157,57 @@ mod tests {
     }
 
 
+    /// Top-level declarations for `sel`, gathered from every rule whose
+    /// selector list names it, so a grouped selector counts for each member.
+    /// Rules nested in `@media` blocks are left out.
+    fn declarations_for(css: &str, sel: &str) -> String {
+        let mut css = css.to_string();
+        while let Some(start) = css.find("/*") {
+            let end = css[start..].find("*/").expect("unterminated comment") + start + 2;
+            css.replace_range(start..end, "");
+        }
+        let mut out = String::new();
+        let mut depth = 0usize;
+        let mut from = 0;
+        let mut selector = String::new();
+        for (i, c) in css.char_indices() {
+            match c {
+                '{' => {
+                    if depth == 0 {
+                        selector = css[from..i].trim().to_string();
+                        from = i + 1;
+                    }
+                    depth += 1;
+                }
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        let named = !selector.starts_with('@')
+                            && selector.split(',').any(|s| s.trim() == sel);
+                        if named {
+                            out.push_str(&css[from..i]);
+                        }
+                        from = i + 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(!out.is_empty(), "no top-level rule names {sel}");
+        out
+    }
+
     #[test]
     fn small_dots_match_the_pill() {
         let css = include_str!("../../assets/main.css");
-        let rule = |sel: &str| {
-            let r = &css[css.find(sel).unwrap_or_else(|| panic!("{sel} rule"))..];
-            r[..r.find('}').unwrap()].to_string()
-        };
-        let small = rule(".small-dots {");
-        let pill = rule(".pill-activity {");
-        for decl in ["gap: 2px;", "height: 8px;", "align-items: center;"] {
+        let small = declarations_for(css, ".small-dots");
+        let pill = declarations_for(css, ".pill-activity");
+        for decl in [
+            "display: inline-flex;",
+            "align-items: center;",
+            "gap: 2px;",
+            "height: 8px;",
+        ] {
             assert!(pill.contains(decl), "premise: .pill-activity has {decl}");
             assert!(
                 small.contains(decl),
@@ -190,6 +215,14 @@ mod tests {
             );
         }
         assert!(!small.contains("width: 0"), ".small-dots is always open");
+        assert!(
+            small.contains("flex-shrink: 0;"),
+            ".small-dots never shrinks"
+        );
+        assert!(
+            !pill.contains("flex-shrink"),
+            "the pill's width is animated, not flex-managed"
+        );
     }
 
     /// Seeds as the component derives them, plus edge values.
@@ -256,8 +289,7 @@ mod tests {
             "a dot can reach {reach}px from centre, outside a {ROW_HEIGHT_PX}px row"
         );
         let css = include_str!("../../assets/main.css");
-        let row = &css[css.find(".river-flow {").expect(".river-flow rule")..];
-        let row = &row[..row.find('}').unwrap()];
+        let row = css_rule_body(css, ".river-flow");
         assert!(
             row.contains(&format!("height: {ROW_HEIGHT_PX}px")),
             ".river-flow's height in main.css must equal ROW_HEIGHT_PX"
@@ -274,10 +306,7 @@ mod tests {
     #[test]
     fn pill_width_fits_the_dots() {
         let css = include_str!("../../assets/main.css");
-        let rule = &css[css
-            .find(".pill-activity[data-active=\"true\"] {")
-            .expect("open .pill-activity rule")..];
-        let rule = &rule[..rule.find('}').unwrap()];
+        let rule = css_rule_body(css, ".pill-activity[data-active=\"true\"]");
         let width = SMALL_DOT_COUNT * 3 + (SMALL_DOT_COUNT - 1) * 2;
         assert!(
             rule.contains(&format!("width: {width}px;")),
