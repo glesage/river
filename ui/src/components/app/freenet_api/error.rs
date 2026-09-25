@@ -252,6 +252,46 @@ mod tests {
         );
     }
 
+    /// Every writer of a user-visible error stores the cleaned text. The
+    /// connect paths are wasm-only and the send failures need a dead socket,
+    /// so no behavioural test reaches them.
+    #[test]
+    fn user_visible_errors_store_the_cleaned_text() {
+        use crate::util::source_scan::{production_only, strip_line_comments};
+        let prod = |src: &str| strip_line_comments(production_only(src));
+
+        let connection = prod(include_str!("connection_manager.rs"));
+        assert!(connection.contains("SynchronizerStatus::Error(error.user_message())"));
+        assert!(!connection.contains("SynchronizerStatus::Error(error.to_string())"));
+        // The `onerror` closure: the raw text stays for the log and the
+        // reconnect check, the cleaned text is what gets stored.
+        assert!(connection.contains("node_error_message(&error)"));
+        assert!(!connection.contains("SynchronizerStatus::Error(error_msg)"));
+
+        let synchronizer = prod(include_str!("freenet_synchronizer.rs"));
+        assert!(!synchronizer.contains("SynchronizerStatus::Error(error.to_string())"));
+
+        for (file, src, raw) in [
+            (
+                "room_synchronizer.rs",
+                include_str!("room_synchronizer.rs"),
+                "Error(e.to_string())",
+            ),
+            (
+                "get_response.rs",
+                include_str!("response_handler/get_response.rs"),
+                "Err(e.to_string())",
+            ),
+            (
+                "put_response.rs",
+                include_str!("response_handler/put_response.rs"),
+                "let error_msg = e.to_string();",
+            ),
+        ] {
+            assert!(!prod(src).contains(raw), "{file} stores `{raw}`");
+        }
+    }
+
     #[test]
     fn no_user_message_starts_with_a_bare_error_label() {
         for error in every_variant() {
