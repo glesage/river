@@ -1,13 +1,4 @@
-//! One toast at a time, centred at the top of the UI.
-//!
-//! [`show_toast`] and [`show_error_toast`] put a message on screen, replacing
-//! whatever toast was already showing: back-to-back actions refresh it rather
-//! than queue. A normal toast disappears after [`TOAST_DURATION_MS`]; an error
-//! toast stays until the user closes it or runs its action.
-//!
-//! [`ToastHost`], mounted once in `App` after every modal, draws it. It sits
-//! above every modal and the room header, and never covers the composer or
-//! the loading dots docked above it.
+//! New toasts replace the current toast rather than queue.
 
 use dioxus::prelude::*;
 use dioxus_free_icons::{
@@ -17,7 +8,7 @@ use dioxus_free_icons::{
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/// How long a normal toast stays on screen.
+
 const TOAST_DURATION_MS: u64 = 5_000;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -26,9 +17,7 @@ enum ToastKind {
     Error,
 }
 
-/// A button on the toast. `run` is called from the click handler, so it must
-/// defer any global signal write itself (see
-/// `.claude/rules/dioxus-signal-safety.md`); the toast closes afterwards.
+/// `run` executes in a click handler and must defer its own global signal writes.
 #[derive(Clone)]
 pub struct ToastAction {
     label: &'static str,
@@ -46,19 +35,17 @@ impl ToastAction {
 
 #[derive(Clone)]
 struct Toast {
-    /// Identity, so a timer or a click can tell whether the toast it was
-    /// armed for is still the one showing.
+
     id: u64,
     message: String,
     kind: ToastKind,
     action: Option<ToastAction>,
 }
 
-/// The toast on screen, if any. Written only inside `crate::util::defer`.
+// Written only inside `crate::util::defer`.
 static TOAST: GlobalSignal<Option<Toast>> = Global::new(|| None);
 
-/// Monotonic, so two toasts shown in the same millisecond never share an id
-/// and one's timer can't close the other.
+// Unlike timestamps, unique even within one millisecond; stale timers cannot close a new toast.
 static NEXT_TOAST_ID: AtomicU64 = AtomicU64::new(1);
 
 fn next_toast_id() -> u64 {
@@ -94,8 +81,7 @@ fn show(kind: ToastKind, message: String, action: Option<ToastAction>) {
     }
 }
 
-/// Close toast `id`, if it is still the one showing: a newer toast, or one
-/// already closed, is left alone.
+
 fn close(id: u64) {
     crate::util::defer(move || {
         let showing = TOAST.peek().as_ref().map(|t| t.id);
@@ -109,8 +95,7 @@ fn is_current(showing: Option<u64>, id: u64) -> bool {
     showing == Some(id)
 }
 
-/// Draws the toast. Mounted once in `App`, after every modal, and never
-/// unmounted.
+/// Keep mounted once in `App`, after the modals.
 #[component]
 pub fn ToastHost() -> Element {
     // `read()`, not `try_read()`: every write is a single `set` inside
@@ -123,8 +108,7 @@ pub fn ToastHost() -> Element {
         .unwrap_or_default();
 
     rsx! {
-        // Always mounted: a live region only announces changes to content that
-        // was already in the DOM, so it must not come and go with the toast.
+        // Keep the live region mounted so screen readers announce content changes.
         span {
             class: "sr-only",
             role: "status",
@@ -200,7 +184,7 @@ mod tests {
         assert_ne!(a, b, "two toasts shown back to back must not share an id");
     }
 
-    /// A timer or click armed for one toast must not close a newer one.
+
     #[test]
     fn only_the_current_toast_is_closed() {
         assert!(is_current(Some(7), 7));
@@ -213,8 +197,7 @@ mod tests {
         assert_eq!(TOAST_DURATION_MS, 5_000);
     }
 
-    /// The host must come after every modal in `App`, so its `z-index` never
-    /// has to fight DOM order, and there must be exactly one.
+
     #[test]
     fn the_host_mounts_once_after_every_modal() {
         let app = strip_line_comments(production_only(include_str!("app.rs")));
@@ -236,7 +219,7 @@ mod tests {
         }
     }
 
-    /// The card sits at the top, above every modal (z-50).
+
     #[test]
     fn the_toast_sits_at_the_top_above_the_modals() {
         let css = include_str!("../../assets/main.css");

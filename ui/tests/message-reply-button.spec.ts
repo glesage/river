@@ -172,9 +172,7 @@ test.describe("message action buttons (Your Private Room)", () => {
     await expect(received.locator(DEL)).toHaveCount(0);
   });
 
-  // The widths are re-checked after a resize because the 75% text cap follows
-  // the column (`--chat-col` from `#chat-content`'s `onresize`), not the width
-  // the page loaded with.
+  // The 75% text cap follows --chat-col via onresize, not the initial viewport.
   test("reaction row layout: chips and smiley at the bubble's left, buttons at its right, one line when it fits", async ({
     page,
   }) => {
@@ -184,8 +182,7 @@ test.describe("message action buttons (Your Private Room)", () => {
     }
   });
 
-  // The cluster (time first, then the buttons) keeps 16px clear of what precedes
-  // it, which is now the smiley after the last chip.
+
   test("a full reaction row keeps 16px between the smiley and the time and buttons", async ({ page }) => {
     const row = outOfLineRow(page);
     await row.scrollIntoViewIfNeeded();
@@ -231,8 +228,7 @@ test.describe("message action buttons (Your Private Room)", () => {
       await chip.click();
       await expect(chip).toHaveAttribute("aria-pressed", "true");
       await expect(chip.locator(COUNT)).toHaveText(String(before + 1));
-      // Your own reaction's chip is marked by its fill. Polled: the click left
-      // the pointer on the chip, and the hover colour transitions out.
+      // Move off the chip and poll until its hover colour transitions out.
       await page.mouse.move(0, 0);
       await expect
         .poll(async () => (await css(chip, "backgroundColor")) !== (await css(theirs, "backgroundColor")))
@@ -278,9 +274,7 @@ test.describe("message action buttons (Your Private Room)", () => {
       expect(Math.abs(hovered.height - rest.height)).toBeLessThanOrEqual(0.5);
     });
 
-    // A bubble's corners follow only its place in its group. A reaction used to
-    // square off a bottom corner of a group's LAST bubble (the only position
-    // whose shape it changed), so react to one of those and compare all four.
+    // Reactions previously squared a bottom corner only on a group's last bubble.
     for (const kind of ["own", "received"] as const) {
       test(`adding a reaction leaves the bubble's corners unchanged (${kind})`, async ({ page }) => {
         const side = kind === "own" ? ":has(.bg-accent)" : ":not(:has(.bg-accent))";
@@ -350,13 +344,13 @@ test.describe("message action buttons (Your Private Room)", () => {
     });
   });
 
-  // The time and buttons show on hover with a mouse, and always on touch.
+
   test.describe("hover reveals", () => {
     test("a message's smiley, reply arrow and time stay hidden until it is hovered", async ({ page }) => {
       const coarse = await isCoarse(page);
       for (const row of [receivedWithReactions(page), ownRow(page)]) {
         if (coarse) {
-          // No hover on touch, so they must be visible at rest.
+
           for (const sel of [PLUS, REPLY, TIME])
             await expect.poll(() => opacity(row.locator(sel)), sel).toBeGreaterThanOrEqual(0.4);
         } else {
@@ -373,14 +367,13 @@ test.describe("message action buttons (Your Private Room)", () => {
       await page.mouse.move(0, 0);
       await expect.poll(() => css(row, "backgroundColor")).toBe("rgba(0, 0, 0, 0)");
 
-      // The row spans the message column plus 8px each side, not just its bubble,
-      // and the bubble stays at the column's edge.
+
       const r = (await row.boundingBox())!;
       const col = (await page.getByTestId("conversation-history").boundingBox())!;
       expect(Math.abs(r.x - (col.x - 8))).toBeLessThanOrEqual(1);
       expect(Math.abs(r.x + r.width - (col.x + col.width + 8))).toBeLessThanOrEqual(1);
 
-      // Hovering the empty space left of the bubble fills the row and reveals its buttons.
+
       const b = (await bubbleOf(row).boundingBox())!;
       expect(Math.abs(b.x + b.width - (col.x + col.width))).toBeLessThanOrEqual(1);
       expect(b.x - r.x).toBeGreaterThan(40);
@@ -401,7 +394,7 @@ test.describe("message action buttons (Your Private Room)", () => {
       const h = (await header.boundingBox())!;
       expect(h.y).toBeGreaterThanOrEqual(r.y - 0.5);
       expect(h.y + h.height).toBeLessThanOrEqual(r.y + r.height + 0.5);
-      // Later rows of the group carry no header of their own.
+
       await expect(page.locator(".msg-row:not(:first-child) .msg-group-header")).toHaveCount(0);
     });
 
@@ -412,8 +405,7 @@ test.describe("message action buttons (Your Private Room)", () => {
       await bubbleOf(row).hover();
       await row.locator(PLUS).click();
       await expect(page.locator(PICKER)).toBeVisible();
-      // No class keeps them shown: the picker's full-screen backdrop sits inside
-      // the row, so the row stays hovered wherever the mouse goes.
+      // The picker backdrop is inside the row, keeping it hovered even off-bubble.
       await page.mouse.move(0, 0);
       await expect.poll(() => opacity(row.locator(PLUS))).toBe(1);
       await expect.poll(() => css(row, "backgroundColor")).toBe(await rowHover(page));
@@ -422,9 +414,7 @@ test.describe("message action buttons (Your Private Room)", () => {
 });
 
 test.describe("deep history band spacing", () => {
-  // Own describe, not the shared beforeEach above: this test boots the
-  // capped-history fixture directly (loading "Your Private Room" first
-  // would throw the session away).
+  // Avoid the shared beforeEach: opening Your Private Room discards this fixture.
   // The space around a row is padding inside its band (main.css `.msg-row`):
   // 8px at the sides and at a group's top and bottom, 2px between rows of one
   // group. So neighbouring bands touch and hovering never finds a dead strip.

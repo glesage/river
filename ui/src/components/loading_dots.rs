@@ -1,27 +1,14 @@
-//! What the loading dots look like, with no opinion on when they show.
-//!
-//! - **Wave dots**: ten accent-blue dots riding one travelling wave.
-//! - **Small dots**: five 3 px dots bobbing in a wave, as in the connection
-//!   pill.
-//!
-//! `network_activity_indicator` decides when its gated dots show and draws
-//! them with the markup helpers here. [`WaveDots`] and [`SmallDots`] are
-//! always on: for a surface that is loading for exactly as long as it is
-//! mounted (the rooms rail and the no-room screen while rooms load, a room
-//! waiting for its first sync, an invite DM on its way).
+//! Ungated loading visuals; callers control their lifetime.
 
 use dioxus::prelude::*;
 
-/// Dots in a row of wave dots.
+
 const WAVE_DOT_COUNT: usize = 10;
 
-/// Dots in a row of small dots. main.css's open `.pill-activity` width must
-/// fit exactly this many (see `pill_width_fits_the_dots`).
+// Must fit main.css's open `.pill-activity` width.
 const SMALL_DOT_COUNT: usize = 5;
 
-/// One row's worth of wave dots, for a container with class `river-flow`.
-/// `seed` picks the wave: keep it stable for as long as the row is up, so a
-/// re-render doesn't restart the animation.
+/// Keep `seed` stable while mounted to avoid restarting the animation.
 pub(crate) fn wave_dot_spans(seed: u64, dot_testid: &'static str) -> Element {
     let motions = dot_motions(seed);
     rsx! {
@@ -36,8 +23,7 @@ pub(crate) fn wave_dot_spans(seed: u64, dot_testid: &'static str) -> Element {
     }
 }
 
-/// The five small dots, for a container with class `pill-activity` or
-/// `small-dots`.
+
 pub(crate) fn small_dot_spans() -> Element {
     rsx! {
         for i in 0..SMALL_DOT_COUNT {
@@ -46,12 +32,10 @@ pub(crate) fn small_dot_spans() -> Element {
     }
 }
 
-/// Big wave dots, in the flow, for a surface that is loading for as long as
-/// it is mounted (the rooms rail and the no-room screen while rooms load).
+
 #[component]
 pub fn WaveDots(testid: &'static str) -> Element {
-    // One wave per mount, kept across re-renders so the animation doesn't
-    // restart.
+
     let seed = use_hook(|| crate::components::app::sync_info::now_ms().to_bits());
     rsx! {
         div {
@@ -63,8 +47,7 @@ pub fn WaveDots(testid: &'static str) -> Element {
     }
 }
 
-/// The connection pill's small dots, in accent blue, for an inline "this is
-/// in progress" (a room row, a banner, a footer).
+
 #[component]
 pub fn SmallDots(testid: &'static str) -> Element {
     rsx! {
@@ -77,35 +60,22 @@ pub fn SmallDots(testid: &'static str) -> Element {
     }
 }
 
-// ---- Wave motion ----------------------------------------------------------
-//
-// Every dot rides the same 1.5 s travelling wave (`river-flow-wave` in
-// main.css), so the crest still reads as one ripple crossing the row. What
-// varies per dot, so it moves like water rather than a metronome: how high it
-// rises, a nudge to its place on the wave, which smooth curve it eases along,
-// and a slower second swell on its own period. The periods do not divide each other, so the row never exactly
-// repeats. Every curve is a monotone cubic-bezier: no steps, no linear, no
-// overshoot.
 
-/// Seconds between neighbouring dots on the travelling wave. Must match the
-/// `0.15s` in main.css's `animation-delay` for `.river-flow-dot`.
+// Must match main.css's `.river-flow-dot` animation-delay step.
 const WAVE_STEP_S: f64 = 0.15;
-/// Primary rise, px either side of rest.
+
 const AMP_PX: (f64, f64) = (2.0, 3.0);
-/// Largest nudge to a dot's place on the wave. Kept under half of
-/// `WAVE_STEP_S` so the crest still travels strictly left to right.
+// Keep below half of WAVE_STEP_S so the crest travels strictly left to right.
 const PHASE_JITTER_S: f64 = 0.045;
-/// Secondary swell, px either side, and its period.
+
 const SWELL_PX: (f64, f64) = (0.6, 1.4);
 const SWELL_PERIOD_S: (f64, f64) = (2.2, 3.4);
-/// Height of the `.river-flow` row in main.css. The motion must fit inside it,
-/// because the 12 px clearances above and below are measured from its edges.
+// Match main.css's `.river-flow` height; motion must fit within the row's clearances.
 const ROW_HEIGHT_PX: f64 = 14.0;
-/// Half a 5 px dot at the crest's `scale: 1`.
+// Half the CSS dot width at scale: 1.
 const DOT_RADIUS_PX: f64 = 2.5;
 
-/// Smooth S-curves the dots ease along. Control points keep y at 0 and 1, so
-/// each is monotone with no overshoot: every dot always moves on a curve.
+// Keep y control points at 0 and 1 to prevent overshoot.
 const WAVE_EASES: [&str; 6] = [
     "cubic-bezier(0.37, 0, 0.63, 1)",
     "cubic-bezier(0.45, 0, 0.55, 1)",
@@ -115,8 +85,7 @@ const WAVE_EASES: [&str; 6] = [
     "cubic-bezier(0.5, 0, 0.7, 1)",
 ];
 
-/// One dot's share of the wave, emitted as custom properties that main.css's
-/// keyframes read.
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct DotMotion {
     amp_px: f64,
@@ -143,8 +112,7 @@ impl DotMotion {
     }
 }
 
-/// The wave for one appearance of the dots. Deterministic in `seed`, so the
-/// same appearance renders the same wave on every re-render.
+
 fn dot_motions(seed: u64) -> [DotMotion; WAVE_DOT_COUNT] {
     let mut rng = SplitMix64(seed);
     std::array::from_fn(|_| {
@@ -160,7 +128,7 @@ fn dot_motions(seed: u64) -> [DotMotion; WAVE_DOT_COUNT] {
     })
 }
 
-/// splitmix64: tiny, fast, and plenty for choosing how dots wobble.
+
 struct SplitMix64(u64);
 
 impl SplitMix64 {
@@ -183,8 +151,7 @@ impl SplitMix64 {
 mod tests {
     use super::*;
 
-    /// Loading is shown with dots (`WaveDots`, `SmallDots`, or the gated
-    /// indicators), never a spinner: one visual language for "in progress".
+
     #[test]
     fn no_spinners_are_left() {
         use std::path::Path;
@@ -205,8 +172,7 @@ mod tests {
         );
     }
 
-    /// `SmallDots` are the pill's dots outside the pill: same dot class, same
-    /// gap and height as `.pill-activity`, and always open.
+
     #[test]
     fn small_dots_match_the_pill() {
         let css = include_str!("../../assets/main.css");
@@ -247,8 +213,7 @@ mod tests {
         assert_ne!(a, b);
     }
 
-    /// The randomness must not break the ripple: each dot's place on the wave
-    /// stays strictly after its left neighbour's.
+
     #[test]
     fn the_crest_still_travels_left_to_right() {
         for seed in seeds() {
@@ -282,8 +247,7 @@ mod tests {
         }
     }
 
-    /// The row's edges are what the 12 px clearances are measured from, so no
-    /// dot may leave it.
+
     #[test]
     fn the_motion_fits_inside_the_row() {
         let reach = AMP_PX.1 + SWELL_PX.1 + DOT_RADIUS_PX;
@@ -306,9 +270,7 @@ mod tests {
         assert!(css.contains(&format!("(var(--i) - 10) * {WAVE_STEP_S}s")));
     }
 
-    /// The pill's open dots span must be exactly as wide as its dots (3 px
-    /// each, 2 px gaps): narrower clips the last dot, wider leaves a gap that
-    /// pushes the label further than the dots need.
+
     #[test]
     fn pill_width_fits_the_dots() {
         let css = include_str!("../../assets/main.css");
@@ -323,8 +285,7 @@ mod tests {
         );
     }
 
-    /// "They should remain curves": monotone cubic-beziers only, no steps,
-    /// no linear, no overshoot.
+
     #[test]
     fn every_ease_is_a_smooth_monotone_curve() {
         for ease in WAVE_EASES {

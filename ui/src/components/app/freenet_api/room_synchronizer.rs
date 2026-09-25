@@ -748,8 +748,6 @@ impl RoomSynchronizer {
                                 MemberId::from(owner_vk),
                                 e
                             );
-                            // Report the failure in an error toast the user
-                            // can retry from.
                             let reason = node_error_message(&e);
                             crate::util::defer(move || {
                                 fail_join(owner_vk, reason);

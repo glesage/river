@@ -637,8 +637,7 @@ async fn drive_send(
     if ciborium::ser::into_writer(&member, &mut member_bytes).is_err() {
         return Err("Couldn't serialize membership claim. Try again.".into());
     }
-    // The user waits on the node for this signature; the DM that carries the
-    // invitation then waits on its own UPDATE (`send_structured_dm`).
+    // send_structured_dm tracks the subsequent UPDATE separately.
     let signature = crate::components::app::node_activity::track(
         crate::components::app::node_activity::ActionKind::Sending,
         crate::signing::sign_member_with_fallback(room_key, member_bytes, &inviter_sk),

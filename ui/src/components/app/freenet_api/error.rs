@@ -53,11 +53,8 @@ pub enum SynchronizerError {
 }
 
 impl SynchronizerError {
-    /// The text to show a user: the failure, said once.
-    ///
-    /// `Display` keeps its category label for logs and for the substring
-    /// checks in `freenet_synchronizer.rs`; this drops the label wherever it
-    /// only restates the payload. No `_` arm, so a new variant must choose.
+    /// Unlike user-facing text, `Display` must retain category labels for logs
+    /// and substring checks in `freenet_synchronizer.rs`.
     pub fn user_message(&self) -> String {
         match self {
             SynchronizerError::WebSocketError(msg)
@@ -97,11 +94,8 @@ impl From<client_api::Error> for SynchronizerError {
     }
 }
 
-/// A freenet-stdlib client error as text for a user.
-///
-/// The browser client's `ConnectionError` displays as `request error: ` plus
-/// raw JSON that can carry the whole request's `Debug`; this keeps only the
-/// JSON's `"error"` field.
+/// Browser `ConnectionError` display includes raw JSON and potentially the
+/// whole request's `Debug`; show only its `"error"` field.
 pub fn node_error_message(error: &client_api::Error) -> String {
     #[cfg(target_family = "wasm")]
     {
@@ -114,9 +108,7 @@ pub fn node_error_message(error: &client_api::Error) -> String {
     capitalise_first(&error.to_string())
 }
 
-/// The `"error"` field of the JSON freenet-stdlib's browser client puts in
-/// `ConnectionError` (`browser.rs`: `{"error": …, "source"|"origin": …}`).
-/// Pure, so it is testable natively, where that variant does not exist.
+// Kept separate for native tests, where `ConnectionError` does not exist.
 #[cfg_attr(not(target_family = "wasm"), allow(dead_code))]
 fn connection_error_text(value: &freenet_stdlib::prelude::serde_json::Value) -> Option<&str> {
     value.get("error")?.as_str().filter(|s| !s.is_empty())
@@ -134,8 +126,6 @@ fn capitalise_first(s: &str) -> String {
 mod tests {
     use super::*;
 
-    /// One instance of every variant, so a check over "all errors" can't
-    /// silently skip one.
     fn every_variant() -> Vec<SynchronizerError> {
         vec![
             SynchronizerError::WebSocketError("a".into()),
@@ -190,8 +180,6 @@ mod tests {
         );
     }
 
-    /// Logs and the substring checks in `freenet_synchronizer.rs` read
-    /// `Display`, so it keeps its label.
     #[test]
     fn display_keeps_its_label_for_logs() {
         assert_eq!(
@@ -215,7 +203,6 @@ mod tests {
             })),
             Some("WebSocket is not open (state: CLOSED)")
         );
-        // Anything else falls back to `Display`.
         for value in [
             json!({"source": "close"}),
             json!({"error": ""}),
@@ -252,9 +239,7 @@ mod tests {
         );
     }
 
-    /// Every writer of a user-visible error stores the cleaned text. The
-    /// connect paths are wasm-only and the send failures need a dead socket,
-    /// so no behavioural test reaches them.
+    // Source checks cover wasm-only connection paths and dead-socket failures.
     #[test]
     fn user_visible_errors_store_the_cleaned_text() {
         use crate::util::source_scan::{production_only, strip_line_comments};
@@ -263,8 +248,6 @@ mod tests {
         let connection = prod(include_str!("connection_manager.rs"));
         assert!(connection.contains("SynchronizerStatus::Error(error.user_message())"));
         assert!(!connection.contains("SynchronizerStatus::Error(error.to_string())"));
-        // The `onerror` closure: the raw text stays for the log and the
-        // reconnect check, the cleaned text is what gets stored.
         assert!(connection.contains("node_error_message(&error)"));
         assert!(!connection.contains("SynchronizerStatus::Error(error_msg)"));
 

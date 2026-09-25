@@ -205,15 +205,8 @@ const nearBytes = (a: number[], b: number[]) =>
   a.every((v, i) => Math.abs(v - b[i]) <= 4);
 
 /**
- * From 1s into the highlight: full strength (fully opaque, matching
- * `surface`) until 2s, then exactly `base` (the row's own background) with
- * nothing in between, and never a `background-color` transition, including
- * after `animationend` takes the class off. Starting at 1s leaves out the
- * hover test's pointer move.
- *
- * The highlight's whole lifetime check, run on the hovered and unhovered
- * paths: the recorder keeps sampling until the class has been off for a
- * while (or its cap), so the last sample also proves the class comes off.
+ * Start at 1s to exclude the hover test's pointer move. Sampling continues
+ * past animationend to catch transitions introduced when the class is removed.
  */
 function expectInstantOff(samples: Sample[], surface: number[], base: number[]) {
   const start = samples.findIndex((s) => s.animTime !== null);

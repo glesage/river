@@ -68,9 +68,6 @@ pub fn ConnectionStatusIndicator() -> Element {
     };
     let label = connection_status_label(&status);
 
-    // Background work (connecting, loading or re-syncing rooms, refreshes,
-    // delegate saves) shows as small dots after the label, with the reason as
-    // a tooltip and in `data-busy-reason`.
     let busy = crate::components::network_activity_indicator::background_activity();
 
     rsx! {
@@ -90,9 +87,7 @@ pub fn ConnectionStatusIndicator() -> Element {
     }
 }
 
-/// The pill's text. An error shows only its message: the red pill already
-/// says it is an error. No trailing ellipsis: the pill's dots show that work
-/// is ongoing.
+// Colour conveys errors; activity dots replace a trailing ellipsis.
 fn connection_status_label(status: &SynchronizerStatus) -> String {
     match status {
         SynchronizerStatus::Connected => "Connected".to_string(),
@@ -2348,7 +2343,6 @@ fn complete_identity_import(
             // AUTHORITATIVE: the user just imported/chose this identity, so it
             // becomes the room's current identity and supersedes any stale
             // hydration migration for an old key (freenet/river#414 P1).
-            // The user waits on the node while it takes the imported key.
             let result = crate::components::app::node_activity::track(
                 crate::components::app::node_activity::ActionKind::Saving,
                 crate::signing::migrate_signing_key(room_key_bytes, &new_sk, true),
@@ -2728,8 +2722,6 @@ mod tests {
         AuthorizedMember::new(member, owner_sk)
     }
 
-    /// The red pill already says it is an error, so the label is the message
-    /// alone — the same as the room-sync banner and the rail's ⚠ tooltip.
     #[test]
     fn an_error_pill_shows_only_its_message() {
         let msg = "WebSocket connection failed or timed out";

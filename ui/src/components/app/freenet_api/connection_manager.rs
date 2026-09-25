@@ -85,9 +85,7 @@ mod imp {
                     // (freenet/river#382). Recorded before any early return.
                     crate::components::app::freenet_api::connection_watchdog::record_ws_activity();
 
-                    // Settle whatever request this answers, for the loading
-                    // indicators. Here, before any early return, because this
-                    // is the only place the typed `ClientError` still exists.
+                    // Match before early returns or loss of the typed ClientError.
                     crate::components::app::node_activity::on_reply(&result);
 
                     // Check for AUTH_TOKEN_INVALID error - this means the node was restarted

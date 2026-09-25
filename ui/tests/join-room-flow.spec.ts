@@ -1,27 +1,9 @@
 import { test, expect, Page } from "@playwright/test";
 import { waitForApp } from "./example-room";
 
-// Joining a room from an invitation. Once the user clicks Accept, the modal
-// closes and the only join UI is the big loading dots ("Joining room…")
-// through both of its progress states (PendingSubscription, Subscribing),
-// ended by a toast: "Joined {room}" on success, or an error toast with Retry.
-// The old in-modal "Preparing to subscribe to room..." / "Subscribing to
-// room..." screens are gone.
-//
-// PREMISES (see `example_data.rs::install_test_hooks`):
-//   - A no-sync build is `Disconnected` for good, and the big dots need
-//     `Connected`, so every test starts with `setSyncStatus("connected")`.
-//   - `presentTestInvitation()` opens the invitation modal for a room the
-//     example data doesn't have. With no synchronizer, an accepted join stays
-//     pending until `finishTestJoin()` or `failTestJoin()` ends it.
-//
-// State/content coverage below (the join's own dots/toast/reason, and the
-// error-then-Retry path) runs once per Playwright project: none of it varies
-// with screen size, and the error toast's own persistence is covered once,
-// generically, in toast.spec.ts, so it isn't repeated here per viewport.
-// Cases that specifically exercise mobile/desktop navigation (an app
-// re-render racing the join, or the mobile rooms-panel handoff) run once per
-// viewport size further down.
+// No-sync needs an explicit Connected status for the loading indicator.
+// The test invitation targets a room absent from example data; without a
+// synchronizer, its join stays pending until finishTestJoin / failTestJoin.
 
 const INDICATOR = "network-activity-indicator";
 
@@ -34,12 +16,8 @@ async function hook(page: Page, name: string, arg?: string) {
   );
 }
 
-/**
- * Re-render `App`, whose body re-runs the invitation openers and the recovery
- * path. Switching the mobile panel writes `MOBILE_VIEW`, which `App` reads; a
- * desktop room click alone does not (the view is already the chat), so the
- * desktop run narrows the window to reach the hamburger, then restores it.
- */
+// App reads MOBILE_VIEW, so switching panels re-runs invitation recovery.
+// A desktop room click alone does not; narrow the viewport to reach the hamburger.
 async function rerenderApp(page: Page, isMobile: boolean) {
   const viewport = page.viewportSize()!;
   if (!isMobile) {
@@ -55,7 +33,7 @@ async function rerenderApp(page: Page, isMobile: boolean) {
   }
 }
 
-/** Present the test invitation and accept it with the default nickname. */
+
 async function acceptTestInvitation(page: Page) {
   await hook(page, "setSyncStatus", "connected");
   await hook(page, "presentTestInvitation");
@@ -104,9 +82,7 @@ test.describe("Joining a room", () => {
     await expect(page.getByTestId(INDICATOR), "a failed join is not running").toHaveCount(0, {
       timeout: 3_000,
     });
-    // The error toast's own persistence (it must not time out like a normal
-    // toast) is covered once, generically, by toast.spec.ts's "an error toast
-    // stays until it is closed" — not repeated here per viewport.
+
 
     await page.getByTestId("toast-action").click();
     await expect(toast).toHaveCount(0);
@@ -119,8 +95,7 @@ test.describe("Joining a room", () => {
     await hook(page, "failTestJoin");
     await expect(page.getByTestId("toast")).toHaveAttribute("data-kind", "error");
 
-    // An explicit request (a DM card's Accept, a link click) may reopen a
-    // FAILED join's invitation, with the normal options to accept again.
+
     await hook(page, "presentTestInvitation");
     await expect(page.getByTestId("receive-invitation-modal")).toBeVisible();
     await expect(page.getByTestId("receive-invitation-accept-button")).toBeVisible();
@@ -154,8 +129,7 @@ for (const { label, viewport, isMobile } of [
       await expect(page.getByTestId("toast")).toHaveAttribute("data-kind", "error");
       await expect(page.getByTestId(INDICATOR)).toHaveCount(0, { timeout: 3_000 });
 
-      // A failed join is left for the user's Retry: no modal, and no silent
-      // re-accept bringing the dots back.
+
       await rerenderApp(page, isMobile);
       await page.waitForTimeout(1_500);
       await expect(page.getByTestId("receive-invitation-modal")).toHaveCount(0);

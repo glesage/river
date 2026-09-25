@@ -911,13 +911,9 @@ fn MaxMembersField(
     }
 }
 
-/// Sign an already-prepared configuration edit, apply it to the room, and hand
-/// it to the sync.
-///
-/// Everything field-specific stays with the caller: parsing, the ownership and
-/// signing-key checks, sealing, rolling the input back on refusal, and bumping
-/// `configuration_version`. `room_state` is the state captured alongside the
-/// key, which `apply_delta` validates against. `what` names the field in logs.
+/// Callers must validate ownership and the signing key, parse/seal fields,
+/// bump `configuration_version`, and handle input rollback. `room_state` must
+/// be captured alongside the key for delta validation.
 pub(super) fn sign_and_apply_configuration(
     owner_key: VerifyingKey,
     room_key: RoomKey,
@@ -927,9 +923,8 @@ pub(super) fn sign_and_apply_configuration(
     what: &'static str,
 ) {
     spawn_local(async move {
-        // The user waits on the node from here: the delegate's signature, then
-        // the UPDATE. Moved into the deferred apply below, so it ends only once
-        // the UPDATE wait has taken over.
+        // Move the guard into the deferred apply to cover the handoff
+        // from signing to the UPDATE wait.
         let busy = crate::components::app::node_activity::busy(
             crate::components::app::node_activity::ActionKind::Saving,
         );

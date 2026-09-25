@@ -66,8 +66,7 @@ pub static SYNC_STATUS: GlobalSignal<SynchronizerStatus> = Global::new(|| {
     }
 });
 pub static SYNCHRONIZER: GlobalSignal<FreenetSynchronizer> = Global::new(FreenetSynchronizer::new);
-/// The node connection. Holds [`NodeApi`], which records every request so
-/// the loading indicators know what is still awaiting a reply.
+
 pub static WEB_API: GlobalSignal<Option<NodeApi>> = Global::new(|| None);
 pub static AUTH_TOKEN: GlobalSignal<Option<String>> = Global::new(|| None);
 
@@ -201,9 +200,7 @@ pub fn App() -> Element {
                 if is_invitation_processed(&fingerprint) {
                     debug!("Intercepted invite click already processed; ignoring");
                 } else if join_in_progress(&invitation.room) {
-                    // Accept closed the modal and the join is running; the
-                    // loading dots already show it. (A FAILED join does
-                    // reopen: the click is an explicit request to try again.)
+                    // Explicit clicks may reopen failed joins, but not running ones.
                     debug!("Intercepted invite click while its join is running; ignoring");
                 } else {
                     info!("Intercepted invite link click: opening modal in place");
@@ -278,10 +275,7 @@ pub fn App() -> Element {
                                 "Skipping invitation in URL: already accepted or dismissed in this browser"
                             );
                         } else if join_attempted(&invitation.room) {
-                            // This block runs on every `App` render. Accept
-                            // closed the modal and the join is running, or it
-                            // failed and its error toast offers Retry: either
-                            // way, don't pop the modal back up on its own.
+                            // Re-renders must not reopen the modal after Accept, even on failure.
                             debug!("Skipping invitation in URL: its join was already attempted");
                         } else {
                             info!("Received invitation from URL: {:?}", invitation);
@@ -381,8 +375,7 @@ pub fn App() -> Element {
             return;
         }
         if join_in_progress(&inv.room) {
-            // Already accepted, and the loading dots show the join. A FAILED
-            // join does reopen: this is an explicit request to try again.
+
             debug!(
                 "In-app invitation accept ignored: join already running for room {:?}",
                 MemberId::from(inv.room)
@@ -421,10 +414,7 @@ pub fn App() -> Element {
     //   3. No nickname, not yet processed → the user reloaded before deciding;
     //      re-open the modal at the nickname prompt.
     //
-    // None of them applies while a join for the invitation has already been
-    // attempted in this page load: it is running (and the dots show it), or it
-    // failed and its error toast offers Retry. Re-prompting or re-accepting
-    // then would reopen the modal Accept just closed, or restart the join.
+    // Skip attempted joins so re-renders cannot reopen the modal or retry a failure.
     if !found_invitation {
         if let Some(invitation) =
             load_invitation_from_storage().filter(|invitation| !join_attempted(&invitation.room))
@@ -441,12 +431,7 @@ pub fn App() -> Element {
                     // render would re-send `AcceptInvitation` and reset the
                     // pending status, looping.
                     if take_resume_once(&invitation_resume_fired) {
-                        // No modal: the join's loading dots and its outcome
-                        // toast are the whole UI once Accept has been clicked.
-                        // Defer the accept so the `PENDING_INVITES` mutation
-                        // and channel send happen in a clean execution context
-                        // (per the Dioxus signal-safety rules) rather than
-                        // mid-render of the `App` component body.
+                        // Defer acceptance to avoid mutating signals mid-render.
                         info!("Recovered pending invitation with saved nickname; auto-resuming subscription");
                         crate::util::defer(move || {
                             accept_invitation(invitation, nickname);
@@ -707,14 +692,7 @@ mod tests {
     // effect runs inside Dioxus's render loop and isn't unit-testable
     // without the runtime.
     // -----------------------------------------------------------------
-    /// Accept closes the invitation modal, and the openers in `App`'s body
-    /// run on every render. The automatic ones (the URL, the in-page
-    /// recovery) must skip an invitation whose join was already attempted:
-    /// running, where the loading dots show it, or failed, where its error
-    /// toast offers Retry. Otherwise the modal Accept just closed pops back up
-    /// (the gateway iframe, where no nickname is saved, takes `Prompt`) or the
-    /// join silently restarts (`Resume`). The explicit ones (a link click, a
-    /// DM card) skip only a RUNNING join, so a failed one can be tried again.
+    // Automatic openers must not retry failures; explicit clicks may.
     #[test]
     fn invitation_openers_skip_a_join_already_attempted() {
         let src = crate::util::source_scan::strip_line_comments(
@@ -728,7 +706,7 @@ mod tests {
             url.contains("join_attempted(&invitation.room)"),
             "the URL opener must skip an attempted join"
         );
-        // Whitespace-insensitive: rustfmt reflows the chain as it likes.
+
         let squashed: String = src.split_whitespace().collect();
         assert!(
             squashed.contains(

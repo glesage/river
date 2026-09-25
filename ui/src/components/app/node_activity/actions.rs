@@ -1,28 +1,14 @@
-//! What the user is waiting on from the node right now.
-//!
-//! An action waits in one of two ways:
-//!
-//! - **On a room's next UPDATE.** Handlers that change room state don't send
-//!   anything themselves: `mark_needs_sync` hands the change to
-//!   `process_rooms`, which sends an UPDATE later. So the action waits,
-//!   unsent, until an UPDATE for its contract is recorded, then ends with that
-//!   UPDATE's reply.
-//! - **Scoped**, for the lifetime of a guard around an awaited node call (a
-//!   delegate signature, a delegate save).
-//!
-//! Every action is capped, so one whose room never sends (not subscribed yet)
-//! or whose reply is lost cannot keep the indicator on. Pure: no signals, no
-//! clock.
+//! Room changes wait for the next UPDATE sent by `process_rooms`, then its
+//! reply; scoped actions wait for a guard to drop. Both are capped so an
+//! unsubscribed room or lost reply cannot leave the indicator on.
 
 use super::ledger::SlotId;
 use freenet_stdlib::prelude::ContractInstanceId;
 use std::collections::{HashMap, HashSet};
 
-/// Identifies one pending action.
 pub(crate) type ActionId = u64;
 
-/// What the user did, for the indicator's label. Ordered by priority: when
-/// several are pending, the earliest variant wins.
+/// Variant order sets indicator priority: the earliest pending kind wins.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum ActionKind {
     CreatingRoom,
@@ -34,11 +20,8 @@ pub enum ActionKind {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Wait {
-    /// Waiting for an UPDATE for this contract to be sent.
     Unsent(ContractInstanceId),
-    /// Carried by this recorded request; ends with its reply.
     Slot(SlotId),
-    /// Ends when its guard drops.
     Scoped,
 }
 
@@ -55,7 +38,6 @@ pub(crate) struct Actions {
 }
 
 impl Actions {
-    /// The user changed a room; the change goes out in its next UPDATE.
     pub(crate) fn await_update(
         &mut self,
         id: ActionId,
@@ -73,8 +55,6 @@ impl Actions {
         );
     }
 
-    /// An UPDATE for `contract` was recorded as `slot`: it carries every
-    /// change still waiting to go out for that contract.
     pub(crate) fn attach_unsent(&mut self, contract: ContractInstanceId, slot: SlotId) {
         for action in self.pending.values_mut() {
             if action.wait == Wait::Unsent(contract) {
@@ -83,7 +63,6 @@ impl Actions {
         }
     }
 
-    /// The node replied to (or failed, or lost) these requests.
     pub(crate) fn slots_settled(&mut self, slots: &[SlotId]) {
         self.pending
             .retain(|_, a| !matches!(a.wait, Wait::Slot(s) if slots.contains(&s)));
@@ -104,13 +83,10 @@ impl Actions {
         self.pending.remove(&id);
     }
 
-    /// Drop actions pending for at least `cap_ms`.
     pub(crate) fn expire(&mut self, now: f64, cap_ms: f64) {
         self.pending.retain(|_, a| a.started_at > now - cap_ms);
     }
 
-    /// Requests that carry a user action. They count toward the primary
-    /// indicator, not the background one.
     pub(crate) fn attached_slots(&self) -> HashSet<SlotId> {
         self.pending
             .values()
@@ -121,7 +97,6 @@ impl Actions {
             .collect()
     }
 
-    /// The highest-priority pending action, if any.
     pub(crate) fn reason(&self) -> Option<ActionKind> {
         self.pending.values().map(|a| a.kind).min()
     }
@@ -176,7 +151,6 @@ mod tests {
         assert!(a.is_empty());
     }
 
-    /// A change made after an UPDATE went out rides the NEXT one.
     #[test]
     fn a_later_change_is_not_attached_to_an_earlier_update() {
         let mut a = Actions::default();

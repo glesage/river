@@ -1,10 +1,6 @@
-//! Every request River has sent its node and not yet heard back about.
-//!
-//! The node's replies carry no request id, only the contract (or delegate)
-//! they concern, so a reply settles the OLDEST outstanding request of its kind
-//! for that key. Errors are matched by the key when the error names one, else
-//! by kind, else they settle the oldest request of all. Pure: no signals, no
-//! clock; every call takes `now` in ms.
+//! Replies carry no request ID, so they settle the oldest request of their
+//! kind and key. Errors without a key fall back to kind, then oldest overall.
+//! Timestamps are supplied by the caller in milliseconds.
 
 use freenet_stdlib::client_api::{
     ClientError, ContractError, ContractResponse, DelegateError, ErrorKind, HostResponse,
@@ -12,11 +8,8 @@ use freenet_stdlib::client_api::{
 };
 use freenet_stdlib::prelude::{ContractInstanceId, DelegateKey};
 
-/// Identifies one recorded request, so user actions can attach to it.
 pub(crate) type SlotId = u64;
 
-/// What a request asked the node to do, and which contract or delegate it
-/// concerns. Replies are matched on this.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) enum RequestKind {
     Update(ContractInstanceId),
@@ -51,15 +44,11 @@ impl RequestKind {
     }
 }
 
-/// Which outstanding request a reply settles.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) enum Settle {
     /// The oldest request of exactly this kind and key.
     Exact(RequestKind),
-    /// The oldest request of this kind, whatever its key.
     OldestOf(Family),
-    /// The oldest request of all: the node failed something without saying
-    /// what.
     Oldest,
 }
 
@@ -106,15 +95,10 @@ impl Ledger {
         }
     }
 
-    /// The socket died or was replaced: no reply to anything sent on it will
-    /// come. Returns the dropped slots.
     pub(crate) fn clear(&mut self) -> Vec<SlotId> {
         self.slots.drain(..).map(|s| s.id).collect()
     }
 
-    /// Drop requests sent at least `max_ms` ago: a backstop for a reply that
-    /// never comes, or one this ledger failed to match. Returns what was
-    /// dropped, with its kind, so the caller can log it.
     pub(crate) fn expire(&mut self, now: f64, max_ms: f64) -> Vec<(SlotId, RequestKind)> {
         let (stale, fresh): (Vec<Slot>, Vec<Slot>) = self
             .slots
@@ -133,10 +117,7 @@ impl Ledger {
     }
 }
 
-/// Which request a reply (or error) from the node settles. `None` for pushes
-/// that answer nothing (`UpdateNotification`, stream chunks) and for errors
-/// that are about the connection rather than a request (a lost socket is
-/// handled by `Ledger::clear`).
+/// Pushes settle nothing; connection errors are handled by `Ledger::clear`.
 pub(crate) fn settle_for(result: &Result<HostResponse, ClientError>) -> Option<Settle> {
     match result {
         Ok(HostResponse::ContractResponse(response)) => match response {
@@ -189,12 +170,9 @@ fn settle_for_error(err: &ClientError) -> Option<Settle> {
             _ => Some(Settle::OldestOf(Family::Delegate)),
         },
         ErrorKind::RequestError(RequestError::Timeout) => Some(Settle::Oldest),
-        // freenet-core's wording: "UPDATE failed: …", "PUT failed: …",
-        // "GET failed: …", "subscribe failed: …" (the op_ctx_task drivers).
-        // Before 0.2.136 a delegate failure also arrives here, untyped, as
-        // the executor's message, which names the delegate. If the wording
-        // changes, these fall back to the oldest request, then to the
-        // backstop — never to a hang.
+        // freenet-core's op_ctx_task drivers prefix errors with the operation.
+        // Before 0.2.136, delegate failures also arrive here as untyped executor
+        // messages. Unrecognised wording falls back to the oldest request.
         ErrorKind::OperationError { cause } => {
             let cause = cause.to_ascii_uppercase();
             let family = [
@@ -360,11 +338,8 @@ mod tests {
         );
     }
 
-    /// Regression: the node answers `RegisterDelegate` with a
-    /// `DelegateResponse`, not `HostResponse::Ok`. Recorded as its own kind,
-    /// its reply settled the NEXT delegate request instead, and its own
-    /// record lingered for the whole backstop after every connect and every
-    /// return to the tab, keeping the pill's dots on.
+    // Tracking registration as a separate kind used to settle the next delegate
+    // request instead, leaving registration pending until the backstop.
     #[test]
     fn a_registration_and_the_requests_after_it_are_all_settled() {
         let mut l = Ledger::default();
@@ -383,7 +358,6 @@ mod tests {
         assert!(l.is_empty(), "three requests, three replies, nothing left");
     }
 
-    /// A notification answers no request: it is the node pushing a change.
     #[test]
     fn pushes_settle_nothing() {
         let reply = contract(ContractResponse::UpdateNotification {
@@ -492,8 +466,6 @@ mod tests {
         }
     }
 
-    /// A lost socket is handled by `Ledger::clear`, not by guessing which
-    /// request it was.
     #[test]
     fn connection_errors_settle_nothing() {
         for kind in [ErrorKind::ChannelClosed, ErrorKind::Disconnect] {

@@ -60,11 +60,7 @@ pub struct PendingRoomJoin {
 }
 
 impl PendingRoomJoin {
-    /// The invitation this join was accepted from, rebuilt from the fields
-    /// `accept_invitation` copied out of it. Byte-identical to the original,
-    /// so its `to_encoded_string()` fingerprint matches the one the URL and
-    /// dismiss paths record (pinned by
-    /// `a_pending_join_rebuilds_the_invitation_it_came_from`).
+    /// Must preserve the original bytes so URL and dismiss fingerprints match.
     pub fn invitation(&self, room: VerifyingKey) -> crate::components::members::Invitation {
         crate::components::members::Invitation {
             room,
@@ -103,15 +99,11 @@ pub enum PendingRoomStatus {
     PendingSubscription,
     /// Subscription request sent, waiting for response
     Subscribing,
-    /// Error occurred during subscription or retrieval. The entry stays until
-    /// the user retries (from the error toast) or accepts the invitation
-    /// again; a successful join removes its entry instead
-    /// (`receive_invitation_modal::finish_join`).
+    /// Retained until retry to prevent automatic re-prompts; success removes the entry.
     Error(String),
 }
 
 impl PendingRoomStatus {
-    /// Whether the join is still being worked on (not failed).
     pub fn is_in_progress(&self) -> bool {
         matches!(self, Self::PendingSubscription | Self::Subscribing)
     }
@@ -121,11 +113,6 @@ impl PendingRoomStatus {
 mod tests {
     use super::*;
 
-    /// `finish_join` marks the invitation processed from the pending entry,
-    /// so the rebuilt invitation must encode to the same bytes as the one the
-    /// user accepted, or the URL's `?invitation=` would re-prompt after a
-    /// successful join. Built with room secrets, the field most likely to
-    /// be dropped.
     #[test]
     fn a_pending_join_rebuilds_the_invitation_it_came_from() {
         use river_core::room_state::member::Member;
@@ -143,7 +130,7 @@ mod tests {
             invitee: AuthorizedMember::new(member, &inviter),
             room_secrets: vec![(0, [0xA1; 32]), (3, [0xB2; 32])],
         };
-        // The fields `accept_invitation` copies into the entry.
+
         let join = PendingRoomJoin {
             authorized_member: accepted.invitee.clone(),
             invitee_signing_key: accepted.invitee_signing_key.clone(),

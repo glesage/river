@@ -1,10 +1,8 @@
 import { test, expect, Page } from "@playwright/test";
 import { waitForApp, openRoomWithComposer } from "./example-room";
 
-// Pins that a message's smiley and action buttons have NO minimum tap size on
-// a touch pointer. One was tried in #605 and reverted (#606) because it made
-// every reaction row taller. That they are visible at rest on touch, which
-// #605 fixed, is covered by message-reply-button.spec.ts's "hover reveals".
+// The minimum tap size from #605 was reverted in #606 because it made every
+// reaction row taller. Touch visibility is covered in message-reply-button.spec.ts.
 
 const PLUS = '[data-testid="add-reaction-button"]';
 const REPLY = '[data-testid="message-reply-button"]';
@@ -29,7 +27,7 @@ test("on a touch pointer the smiley and action buttons have no minimum tap size"
 
   const row = withoutReactions(page);
   await row.scrollIntoViewIfNeeded();
-  // PLUS is `.msg-react-btn`, REPLY is `.msg-action-btn` (main.css).
+
   for (const sel of [PLUS, REPLY]) {
     const box = await row.locator(sel).boundingBox();
     expect(box, `${sel} is rendered`).not.toBeNull();

@@ -173,7 +173,7 @@ fn format_build_time_local() -> String {
     }
 }
 
-/// Save the room order the user just changed. Call after the mutation.
+// Call after the room-order mutation.
 fn spawn_room_order_save() {
     spawn(async move {
         let saved = crate::components::app::node_activity::track(

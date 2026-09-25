@@ -1,17 +1,7 @@
-//! What River is waiting on from its node, split by who asked.
-//!
-//! Two indicators read this:
-//!
-//! - **Primary** (the dots above the composer): only while the USER is waiting
-//!   on the node's reply to something they did. See [`user_reason`].
-//! - **Secondary** (the dots in the connection pill): while any other request
-//!   is outstanding. See [`background_requests`].
-//!
-//! Every request is recorded by [`NodeApi::send`] (the only way to reach the
-//! node) and settled by [`on_reply`], called from the one closure every reply
-//! arrives in. User actions ride on top: a handler that changes a room calls
-//! [`await_room_update`], and a handler that awaits a node call holds a
-//! [`busy`] guard.
+//! The composer indicator tracks user actions; the connection pill tracks
+//! other outstanding requests. [`NodeApi::send`] records requests and
+//! [`on_reply`] settles them. Room-changing handlers register with
+//! [`await_room_update`]; awaited node calls hold a [`busy`] guard.
 
 mod actions;
 mod ledger;
@@ -31,13 +21,9 @@ use ledger::{Ledger, Settle, SlotId};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-/// Longest a request may wait for its reply before it is dropped. Above the
-/// node's own 60 s per-attempt budget, so it only fires for a reply that was
-/// lost or that the ledger failed to match — and those are logged.
+// Exceeds the node's 60 s per-attempt budget to catch lost or unmatched replies.
 const REQUEST_BACKSTOP_MS: f64 = 90_000.0;
 
-/// Longest a user action keeps the primary indicator on, whatever happens.
-/// Matches the liveness watchdog's timeout.
 const ACTION_CAP_MS: f64 =
     crate::components::app::freenet_api::constants::LIVENESS_PROBE_TIMEOUT_MS as f64;
 
@@ -86,12 +72,10 @@ impl NodeActivity {
         self.actions.expire(now, ACTION_CAP_MS);
     }
 
-    /// What the user is waiting on, if anything.
     pub fn user_reason(&self) -> Option<ActionKind> {
         self.actions.reason()
     }
 
-    /// Whether any outstanding request carries no user action.
     pub fn background_requests(&self) -> bool {
         if self.ledger.is_empty() {
             return false;
@@ -111,14 +95,10 @@ fn next_action_id() -> ActionId {
     NEXT_ACTION.fetch_add(1, Ordering::Relaxed)
 }
 
-// Every wrapper below reads the clock at call time and writes the signal
-// inside `crate::util::defer`: callers run in the synchronizer's polled future
-// (holding `WEB_API`), in the WebApi reply callback, or in event handlers
-// (`.claude/rules/dioxus-signal-safety.md`). `setTimeout(0)` is FIFO, so a
-// request is always recorded before its reply settles it: the reply can only
-// arrive after `send` returned.
+// Defer signal writes: callers may hold WEB_API or lack a Dioxus scope.
+// Capture time before deferring. FIFO scheduling records a sent request
+// before its later reply settles it.
 
-/// A request went out. Called only by [`NodeApi::send`] (and test hooks).
 pub(crate) fn record_request(kind: RequestKind) {
     let now = now_ms();
     crate::util::defer(move || {
@@ -127,9 +107,7 @@ pub(crate) fn record_request(kind: RequestKind) {
     arm_sweep(REQUEST_BACKSTOP_MS);
 }
 
-/// A reply or error arrived from the node. Called from the WebApi result
-/// closure in `connection_manager.rs` (wasm-only), before anything else looks
-/// at it.
+/// Call from the WebApi result closure before any early return.
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub fn on_reply(result: &Result<HostResponse, ClientError>) {
     let Some(settle) = ledger::settle_for(result) else {
@@ -152,12 +130,8 @@ pub fn connection_reset() {
     });
 }
 
-/// The user changed the room owned by `room_owner`; the change reaches the
-/// node in that room's next UPDATE. Call BEFORE `mark_needs_sync`, so the
-/// action is known before the sync that sends it can record its UPDATE.
-///
-/// The contract is derived exactly as `process_rooms` derives the UPDATE's
-/// key (`owner_vk_to_contract_key`), so the two always match.
+/// Call before `mark_needs_sync` so the action exists when its UPDATE is recorded.
+/// Key derivation must match `process_rooms`.
 pub fn await_room_update(room_owner: VerifyingKey, kind: ActionKind) {
     let contract = *crate::util::owner_vk_to_contract_key(&room_owner).id();
     let id = next_action_id();
@@ -168,8 +142,7 @@ pub fn await_room_update(room_owner: VerifyingKey, kind: ActionKind) {
     arm_sweep(ACTION_CAP_MS);
 }
 
-/// Keeps a user action pending while it is alive. Hold it across an awaited
-/// node call the user is waiting on.
+/// Hold across the awaited node call; dropping it ends the user action.
 #[must_use = "the action ends when the guard drops"]
 pub struct BusyGuard {
     id: ActionId,
@@ -184,7 +157,6 @@ impl Drop for BusyGuard {
     }
 }
 
-/// Start a user action that lasts as long as the returned guard.
 pub fn busy(kind: ActionKind) -> BusyGuard {
     let id = next_action_id();
     let now = now_ms();
@@ -195,15 +167,13 @@ pub fn busy(kind: ActionKind) -> BusyGuard {
     BusyGuard { id }
 }
 
-/// Run `fut` as a user action: for spawned node calls the user is waiting on
-/// (a delegate save after an explicit preference change, say).
+/// Track only explicit user actions, not background node calls.
 pub async fn track<F: std::future::Future>(kind: ActionKind, fut: F) -> F::Output {
     let _busy = busy(kind);
     fut.await
 }
 
-/// Sweep once `horizon_ms` has passed. Idempotent, so timers never need
-/// cancelling.
+// Expiry is idempotent, so timers need no cancellation.
 fn arm_sweep(horizon_ms: f64) {
     crate::util::safe_spawn_local(async move {
         crate::util::sleep(Duration::from_millis(horizon_ms as u64 + SWEEP_SLACK_MS)).await;
@@ -249,7 +219,6 @@ mod tests {
         assert!(!a.background_requests());
     }
 
-    /// Other rooms' requests stay background even while the user waits.
     #[test]
     fn user_and_background_work_are_counted_separately() {
         let mut a = NodeActivity::default();
@@ -271,8 +240,6 @@ mod tests {
         assert!(!a.background_requests());
     }
 
-    /// A change whose room hasn't sent yet survives a reset: it goes out on
-    /// the new socket.
     #[test]
     fn an_unsent_change_survives_a_reset() {
         let mut a = NodeActivity::default();
@@ -304,13 +271,9 @@ mod tests {
         assert_eq!(a.user_reason(), None);
     }
 
-    // --- Source-scrape pins ------------------------------------------------
 
     use crate::util::source_scan::{fn_body, production_only, strip_line_comments};
 
-    /// Every reply goes through `on_reply` before any early return in the
-    /// WebApi result closure; a skipped reply would leave its request, and
-    /// any user action it carries, pending until the backstop.
     #[test]
     fn every_reply_is_matched_before_any_early_return() {
         let src = strip_line_comments(production_only(include_str!(
@@ -328,11 +291,6 @@ mod tests {
         }
     }
 
-    /// In the user-facing handlers, every `mark_needs_sync` (the hand-off of a
-    /// user's room change to the sync) is preceded, since the previous one, by
-    /// an `await_room_update` for it. Without it the user's change would
-    /// travel to the node with no primary indicator. Registering first is what
-    /// guarantees the action is known before its UPDATE is recorded.
     #[test]
     fn every_user_room_change_awaits_its_update() {
         let files = [
@@ -398,11 +356,7 @@ mod tests {
         );
     }
 
-    /// Every configuration edit (name, description, numeric limits, member
-    /// cap) goes through one signed save. That helper holds the guard until
-    /// the deferred apply, and only a successful apply awaits its UPDATE and
-    /// then hands the change to the sync. The two pins above count the helper
-    /// once; this one proves each caller still reaches it.
+    // The room-change pin counts the shared helper once; also check its callers.
     #[test]
     fn configuration_edits_share_one_signed_save() {
         let edit_room = strip_line_comments(production_only(include_str!(
@@ -472,10 +426,8 @@ mod tests {
         );
     }
 
-    /// Creating a room keeps the primary dots only for the node-local step
-    /// (storing the room's signing key). `EnsureRoomSubscription` can park on
-    /// the network and the room's PUT travels through Freenet, so neither may
-    /// sit inside the guard.
+    // Subscription and PUT can wait on the network; only local key storage
+    // belongs inside the primary-indicator guard.
     #[test]
     fn creating_a_room_waits_only_on_the_node_local_step() {
         let src = strip_line_comments(production_only(include_str!(
@@ -504,8 +456,6 @@ mod tests {
         );
     }
 
-    /// Each explicit user action that awaits a node call holds a guard. A
-    /// dropped guard would leave that action with no primary indicator.
     #[test]
     fn scoped_user_actions_keep_their_guard() {
         let files = [
@@ -524,8 +474,7 @@ mod tests {
                 include_str!("../../room_list/notification_modal.rs"),
                 1,
             ),
-            // The four reorder sites share `spawn_room_order_save`; pinned
-            // below the loop.
+            // Four reorder sites share one save helper.
             ("room_list.rs", include_str!("../../room_list.rs"), 1),
             ("members.rs", include_str!("../../members.rs"), 1),
             // Leaving the room, and the shared configuration save (which
@@ -552,8 +501,6 @@ mod tests {
             );
         }
 
-        // room_list.rs: the one guard is the reorder-save helper's, and every
-        // reorder (drop-before, move up, move down, drop-at-end) calls it.
         let room_list = strip_line_comments(production_only(include_str!("../../room_list.rs")));
         assert!(
             fn_body(&room_list, "fn spawn_room_order_save(").contains("node_activity::track("),
@@ -566,14 +513,11 @@ mod tests {
              spawn_room_order_save"
         );
 
-        // chat_delegate.rs has a test module mid-file, so scope to the two
-        // helpers instead: archiving, and the user flavour of un-archiving
-        // (the inbound-sync flavour must stay background).
+        // chat_delegate.rs has a mid-file test module, so production_only would
+        // exclude these helpers.
         let src = strip_line_comments(include_str!("../chat_delegate.rs"));
         assert!(fn_body(&src, "pub fn hide_dm_thread(").contains("node_activity::track("));
         let unhide = fn_body(&src, "fn unhide_dm_thread_saving(");
-        // Only the user flavour holds a guard, named so it lives across the
-        // one shared save rather than dropping at once.
         let guard = unhide
             .find("let _busy = by_user.then(")
             .expect("the guard must be a named binding conditional on by_user");
@@ -596,7 +540,6 @@ mod tests {
             .contains("unhide_dm_thread_saving(room_owner_vk, peer, false)"));
     }
 
-    /// The only way to talk to the node records the request.
     #[test]
     fn web_api_holds_the_recording_wrapper() {
         let app = strip_line_comments(production_only(include_str!("../../app.rs")));
@@ -606,7 +549,6 @@ mod tests {
         );
     }
 
-    /// A reply to anything sent on a dead or replaced socket never comes.
     #[test]
     fn socket_changes_reset_node_activity() {
         let src = strip_line_comments(production_only(include_str!(

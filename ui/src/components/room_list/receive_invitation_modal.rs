@@ -611,15 +611,12 @@ fn dismiss_invitation_persistently(inv: &Invitation, mut invitation: Signal<Opti
     invitation.set(None);
 }
 
-/// Whether a join for `room` has been attempted in this page load: in
-/// progress, or failed and not yet retried. `peek`, so a caller rendering in
-/// `App`'s body does not subscribe `App` to `PENDING_INVITES`.
+/// Includes failed joins. `peek` avoids subscribing `App` to `PENDING_INVITES`.
 pub(crate) fn join_attempted(room: &VerifyingKey) -> bool {
     PENDING_INVITES.peek().map.contains_key(room)
 }
 
-/// Whether a join for `room` is running right now (not failed). Same `peek`
-/// reasoning as [`join_attempted`].
+// Avoid subscribing `App`, as in `join_attempted`.
 pub(crate) fn join_in_progress(room: &VerifyingKey) -> bool {
     PENDING_INVITES
         .peek()
@@ -628,11 +625,7 @@ pub(crate) fn join_in_progress(room: &VerifyingKey) -> bool {
         .is_some_and(|join| join.status.is_in_progress())
 }
 
-/// Close the modal once Accept has started the join. From here the big dots
-/// ("Joining room…") show the wait, and a toast reports the outcome
-/// ([`finish_join`] / [`fail_join`]). On mobile, switch to the chat so the
-/// dots are on screen: a join started from the rooms list (join with code)
-/// would otherwise show nothing at all.
+// On mobile, switch to chat so joins started from the room list show progress.
 fn close_for_join(mut invitation: Signal<Option<Invitation>>) {
     crate::util::defer(move || {
         invitation.set(None);
@@ -640,11 +633,8 @@ fn close_for_join(mut invitation: Signal<Option<Invitation>>) {
     });
 }
 
-/// The join for `room` finished: the room is in `ROOMS` and subscribed. Call
-/// inside `crate::util::defer`, from each place that completes a join.
-///
-/// Runs at most once per join. The pending entry's removal is the dedup: a
-/// retry can leave two GETs in flight, and both can succeed.
+/// Call inside `crate::util::defer` after the room is joined.
+/// Removing the pending entry deduplicates success from concurrent retry GETs.
 pub(crate) fn finish_join(room: VerifyingKey) {
     let Some(join) = PENDING_INVITES.with_mut(|pending| pending.map.remove(&room)) else {
         return;
@@ -689,10 +679,8 @@ pub(crate) fn finish_join(room: VerifyingKey) {
     info!("Joined room {:?}", MemberId::from(room));
 }
 
-/// The join for `room` failed with `reason`. Keeps the pending entry, in
-/// `Error`, so nothing re-prompts for the invitation on its own in this page
-/// load, and reports the failure in an error toast whose Retry re-drives the
-/// join. The invitation is NOT marked processed, so it re-surfaces on reload.
+/// Retain the failed entry to prevent re-prompting during this page load.
+/// Don't mark it processed: reload must allow another attempt.
 pub(crate) fn fail_join(room: VerifyingKey, reason: String) {
     PENDING_INVITES.with_mut(|pending| {
         if let Some(join) = pending.map.get_mut(&room) {
@@ -705,8 +693,7 @@ pub(crate) fn fail_join(room: VerifyingKey, reason: String) {
     );
 }
 
-/// Put a failed join back in the queue and wake the synchronizer. Setting the
-/// status alone would wait for some unrelated `ProcessRooms` to pick it up.
+// A status change alone waits for an unrelated `ProcessRooms` to pick it up.
 fn retry_join(room: VerifyingKey) {
     crate::util::defer(move || {
         let queued = PENDING_INVITES.with_mut(|pending| {
@@ -741,9 +728,7 @@ pub fn ReceiveInvitationModal(invitation: Signal<Option<Invitation>>) -> Element
         return rsx! {};
     };
 
-    // Accept closes the modal while its join runs (`close_for_join`); this is
-    // a safety net for any path that reopens it mid-join. A failed join falls
-    // through to the normal options: accepting again restarts it.
+    // Guard against reopening mid-join; failed joins must allow Accept again.
     let in_progress = PENDING_INVITES
         .read()
         .map
@@ -2139,9 +2124,7 @@ mod tests {
         );
     }
 
-    /// Both places that complete a join hand it to `finish_join`, and both
-    /// places that fail one hand it to `fail_join`. A path that set the
-    /// status itself would skip the toast, and on success the processed mark.
+    // Direct status writes would bypass the toast and success fingerprint.
     #[test]
     fn every_join_outcome_goes_through_finish_or_fail() {
         let get = crate::util::source_scan::strip_line_comments(

@@ -1,13 +1,6 @@
-//! Helpers for source-scrape pin tests: tests that assert on a file's own
-//! source (via `include_str!`) because the wiring they guard has no
-//! behavioural test that could fail.
 
 use std::path::{Path, PathBuf};
 
-/// Every `.rs` file under `dir`, found recursively. Shared by every
-/// source-scrape pin that walks the whole `ui/src` tree for an anti-pattern
-/// (a spinner left behind, a global-signal write outside `defer()`), so the
-/// walk itself cannot drift between call sites.
 pub(crate) fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in std::fs::read_dir(dir).expect("readable source dir") {
         let path = entry.expect("readable dir entry").path();
@@ -40,11 +33,8 @@ pub(crate) fn strip_line_comments(src: &str) -> String {
         .join("\n")
 }
 
-/// The braced block that follows the first `prefix` (a function body, a
-/// closure's, a match arm's), delimited by balancing its opening brace. The
-/// search for that brace starts after `prefix`, so a prefix may contain
-/// braces of its own. Anchor on a full prefix rather than a bare name, so a
-/// comment or helper mentioning the name can't be mistaken for it.
+/// Use a full prefix to avoid matching comments or helpers. The body's opening
+/// brace must follow the prefix, which may contain braces of its own.
 pub(crate) fn fn_body<'a>(src: &'a str, prefix: &str) -> &'a str {
     let start = src
         .find(prefix)

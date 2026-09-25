@@ -89,11 +89,7 @@ test.describe("Invite-member modal guidance copy", () => {
   });
 });
 
-// The modal used to open on a red "Modal closed" error with "Try Again" (left
-// over from generating while it was closed) and had a "Generating
-// invitation..." spinner. Neither may ever be on screen now: while the
-// invitation is signed the body holds only the big loading dots, and only if
-// the wait passes 500ms.
+// Generating while closed previously left a stale error visible on the next open.
 test.describe("Invite-member modal while the invitation is created", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -125,7 +121,7 @@ test.describe("Invite-member modal while the invitation is created", () => {
     await watchForText(page, STALE);
 
     await openInviteModal(page);
-    // Close and reopen: the second open must start clean too.
+
     await page.getByTestId("invite-member-close-button").click();
     await expect(page.getByTestId("invite-member-modal")).toHaveCount(0);
     await page.getByTestId("invite-member-button").click();

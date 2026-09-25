@@ -2,26 +2,9 @@ import { test, expect, Page } from "@playwright/test";
 import { waitForApp } from "./example-room";
 import { openInviteViaDmPicker } from "./invite-picker";
 
-// Every spinner in the UI is now loading dots (docs/plans/spinners-to-dots.md):
-// wave dots (`.river-flow-dot`, ten per row) wherever the rooms rail or the
-// no-room screen waits on the rooms, and the connection pill's small dots
-// (`.pill-activity-dot`, five per row, accent blue) inline elsewhere — a
-// room row and its conversation banner while that room awaits its first
-// sync, and the invite-via-DM picker's footer while a send is in flight.
-// No `.animate-spin` should remain anywhere on the page in any of these
-// states.
-//
-// PREMISES (see `example_data.rs::install_test_hooks`):
-//   - `setRoomsLoadState(state)` drives the rooms rail / no-room screen's
-//     Loading and Migrating states, otherwise unreachable in a no-sync
-//     browser build (freenet/river#509).
-//   - `awaitRoomSync(roomName)` gives the named example room an unsigned
-//     default state (keeping its name), so
-//     `RoomData::is_awaiting_initial_sync()` is true — the same shape an
-//     imported room has before its first GET.
-//   - `holdInviteSend()` holds the invite-via-DM picker's
-//     `INVITE_VIA_DM_PICKER_INFLIGHT` on, since a no-sync send finishes too
-//     fast to observe the "Sending invite…" state otherwise.
+// Test hooks expose states unavailable in no-sync builds: room loading/migration,
+// an unsigned room awaiting its first GET, and an invite send held in flight.
+// Without holdInviteSend, no-sync sends finish too quickly to observe.
 
 const SPINNER = ".animate-spin";
 
@@ -29,7 +12,7 @@ async function hook(page: Page, name: string, arg?: string) {
   await page.evaluate(({ name, arg }) => (window as any).__riverTest[name](arg), { name, arg });
 }
 
-/** `testid` holds ten wave dots, and no spinner is left anywhere on the page. */
+
 async function expectWaveDots(page: Page, testid: string) {
   const dots = page.getByTestId(testid);
   await expect(dots).toBeVisible();
@@ -37,7 +20,7 @@ async function expectWaveDots(page: Page, testid: string) {
   await expect(page.locator(SPINNER)).toHaveCount(0);
 }
 
-/** `testid`, scoped to `scope`, holds the pill's five small dots, in accent blue, animating. */
+
 async function expectSmallDots(page: Page, scope: ReturnType<Page["locator"]>, testid: string) {
   const dots = scope.getByTestId(testid);
   await expect(dots).toBeVisible();

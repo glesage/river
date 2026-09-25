@@ -1478,11 +1478,7 @@ pub fn install_test_hooks() {
     );
     set_load_state.forget();
 
-    // Drive `SYNC_STATUS` for the network activity indicator. A `no-sync`
-    // build never starts the synchronizer, so the status sits at
-    // `Disconnected` for good and every visible state of the indicator is
-    // otherwise unreachable from a browser. Only the connection pill and the
-    // indicator read `SYNC_STATUS`, so nothing tries to talk to a node.
+    // Without a synchronizer, no-sync builds cannot otherwise leave Disconnected.
     let set_sync_status = Closure::wrap(Box::new(move |state: String| {
         use crate::components::app::freenet_api::freenet_synchronizer::SynchronizerStatus;
         let parsed = match state.as_str() {
@@ -1506,11 +1502,8 @@ pub fn install_test_hooks() {
     );
     set_sync_status.forget();
 
-    // Drive `node_activity`, which feeds both loading indicators, through its
-    // real wrappers (so the defer and the sweeps are exercised too); only the
-    // node is missing. One fixed test room, so each hook moves the same
-    // request. `riverTest` passes `undefined` for a missing argument, which a
-    // `String` parameter would reject, so these take `JsValue` or nothing.
+    // Use the real wrappers to exercise deferred updates and expiry without a node.
+    // Optional arguments use JsValue because riverTest passes undefined, not String.
     {
         use crate::components::app::node_activity::{self, ActionKind, BusyGuard, RequestKind};
         use freenet_stdlib::client_api::{ClientError, ContractResponse, ErrorKind, HostResponse};
@@ -1535,8 +1528,6 @@ pub fn install_test_hooks() {
             hook.forget();
         }
 
-        // A scoped user action, like a handler awaiting a delegate signature.
-        // Optional argument: "sending" (default), "saving", "creating-room".
         expose(
             &hooks,
             "beginUserAction",
@@ -1558,8 +1549,6 @@ pub fn install_test_hooks() {
             }) as Box<dyn FnMut()>),
         );
 
-        // A user change riding a room UPDATE: queued, sent, then answered or
-        // failed by the node.
         expose(
             &hooks,
             "awaitRoomUpdate",
@@ -1599,7 +1588,6 @@ pub fn install_test_hooks() {
             }) as Box<dyn FnMut()>),
         );
 
-        // A background request nobody is waiting on, like a refresh GET.
         expose(
             &hooks,
             "beginBackgroundRequest",
@@ -1619,10 +1607,6 @@ pub fn install_test_hooks() {
             }) as Box<dyn FnMut()>),
         );
 
-        // Toasts (toast.rs). `showToast(message, withAction?)`: with a truthy
-        // second argument the toast carries a "Do it" action, whose clicks
-        // are counted in `window.__riverTestToastActions`.
-        // `showErrorToast(message)` shows one that stays until closed.
         fn count_toast_action() {
             if let Some(window) = web_sys::window() {
                 let key = JsValue::from_str("__riverTestToastActions");
@@ -1657,12 +1641,7 @@ pub fn install_test_hooks() {
             }) as Box<dyn FnMut(JsValue)>),
         );
 
-        // The join flow without a node. `presentTestInvitation()` opens the
-        // invitation modal for a room the example data doesn't have, the way a
-        // DM card's Accept does. A no-sync build has no synchronizer, so an
-        // accepted join stays pending and its loading dots can be watched;
-        // `finishTestJoin()` / `failTestJoin()` then end it the way the
-        // synchronizer's GET handling would.
+        // In no-sync builds, accepted joins stay pending until a test completes them.
         fn test_invitation_owner() -> SigningKey {
             SigningKey::from_bytes(&[0xC3; 32])
         }
@@ -1712,10 +1691,7 @@ pub fn install_test_hooks() {
             }) as Box<dyn FnMut()>),
         );
 
-        // A room waiting for its first sync, like an imported one before its first
-        // GET: give the named room an unsigned default state (keeping its name), so
-        // `RoomData::is_awaiting_initial_sync()` is true. Mirrors
-        // `members.rs::build_imported_room_data`.
+        // Unsigned default state mirrors an imported room before its first GET.
         expose(
             &hooks,
             "awaitRoomSync",
@@ -1739,10 +1715,7 @@ pub fn install_test_hooks() {
             }) as Box<dyn FnMut(JsValue)>),
         );
 
-        // Hold the invite-via-DM picker in its "Sending invite…" state. The picker
-        // only shows that footer while `INVITE_VIA_DM_PICKER_INFLIGHT` is `Some`,
-        // and a no-sync send finishes too fast to catch — this holds it on. It
-        // schedules no watchdog, so it stays until the page reloads.
+        // A no-sync send finishes too fast to observe. Hold it without a watchdog.
         expose(
             &hooks,
             "holdInviteSend",

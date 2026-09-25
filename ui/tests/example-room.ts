@@ -24,12 +24,8 @@ export async function selectListedRoom(page: Page, roomName: string) {
   });
 }
 
-/**
- * Open a room that has a composer: self owns "Your Private Room" in the
- * example data. Not simply the first room item: in some rooms self is not a
- * member, and the composer is replaced by the "you're not a member" notice.
- * On a narrow viewport the room list is behind the hamburger.
- */
+// Self owns Your Private Room; other example rooms may hide the composer
+// because self is not a member.
 export async function openRoomWithComposer(page: Page, isMobile: boolean) {
   if (isMobile) {
     await page.getByTestId("hamburger-rooms-button").click();

@@ -232,34 +232,20 @@
     }
 }
 
-/* Wave dots: ten accent-blue dots riding one travelling sine wave. Pure CSS:
- * every dot runs the same keyframes, phase-shifted by its --i. WHEN a row is
- * mounted is decided in Rust: by `DisplayGate` for the user-action indicator
- * (network_activity_indicator.rs: 500ms debounce, 1s minimum), and for as
- * long as a surface is loading for `WaveDots` (loading_dots.rs).
- *
- * It lives inside the chat section, never `position: fixed` to the window:
- * `--docked` pins it to the bottom of the message history, just above the
- * composer; without it the dots sit in the flow of the no-room screen. */
+/* Mount timing belongs to the caller; CSS handles only the animation. */
 .river-flow {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 4px;
-    /* Tall enough to hold the whole motion (ROW_HEIGHT_PX in
-     * network_activity_indicator.rs), since the clearances around the dots
-     * are measured from this row's edges. */
+    /* Match ROW_HEIGHT_PX in loading_dots.rs; motion must fit within this row. */
     height: 14px;
     pointer-events: none;
-    /* No delay here: the 500ms debounce already happened before mount. This
-     * only softens the pop-in. */
+
     animation: river-flow-in 150ms ease-out;
 }
 
-/* 12px above the composer's top border. The history's spacer (below) opens
- * while they show, leaving the same 12px between the dots and the last
- * message. Below the scroll-to-latest button (z-30) and every backdrop and
- * modal. */
+/* Stay below the scroll-to-latest button (z-30) and modal backdrops. */
 .river-flow--docked {
     position: absolute;
     left: 50%;
@@ -268,11 +254,8 @@
     z-index: 20;
 }
 
-/* Room at the end of the history for the docked dots (conversation.rs). The
- * last message ends where this starts; below it are `#chat-content`'s 16px
- * bottom padding and the 1px `#bottom-sentinel`. Clearance, row, clearance
- * (12 + 14 + 12), minus those 17px that are already there. Eases open and
- * shut with the dots' fade. */
+/* Reserve two 12px clearances plus the row, minus #chat-content's existing
+ * 16px bottom padding and the 1px #bottom-sentinel (conversation.rs). */
 .river-flow-spacer {
     height: 0;
     transition: height 150ms ease-out;
@@ -282,15 +265,8 @@
     height: calc(12px + 14px + 12px - 16px - 1px);
 }
 
-/* Two motions on two different properties, so they add up instead of one
- * replacing the other:
- * - river-flow-wave (`translate`, `scale`, `opacity`): the travelling wave.
- *   Every dot runs it over the same 1.5s, placed on the wave by its --i and
- *   nudged by --jitter, rising --amp and easing along its own --ease curve.
- * - river-flow-swell (`transform`): a slower swell of --swell on each dot's
- *   own --swell-dur, so the row never exactly repeats.
- * The per-dot values come from `dot_motions` in network_activity_indicator.rs;
- * the fallbacks here are only for a dot rendered without them. */
+/* Wave uses translate; swell uses transform so the motions add rather than
+ * replace each other. Per-dot values come from loading_dots.rs. */
 .river-flow-dot {
     width: 5px;
     height: 5px;
@@ -299,10 +275,7 @@
     animation:
         river-flow-wave 1.5s var(--ease, ease-in-out) infinite,
         river-flow-swell var(--swell-dur, 2.8s) ease-in-out infinite;
-    /* Dot i trails dot i-1 by a tenth of the period: one wavelength across
-     * the row, crest travelling left to right. Negative, so the wave is
-     * already formed on the first frame instead of the dots starting one by
-     * one. */
+    /* Negative delays start with the full wave already formed. */
     animation-delay:
         calc((var(--i) - 10) * 0.15s + var(--jitter, 0s)),
         var(--swell-delay, 0s);
@@ -322,8 +295,7 @@
     50%      { transform: translateY(calc(var(--swell, 1px) * -1)); }
 }
 
-/* No travel for reduced motion: the same phase-shifted timing, opacity only,
- * so it still reads as activity without anything moving. */
+
 @media (prefers-reduced-motion: reduce) {
     .river-flow-dot {
         animation: river-flow-shimmer 3s ease-in-out infinite;
@@ -336,15 +308,7 @@
     50%      { opacity: 1; }
 }
 
-/* Background activity: five small dots riding a wave after the connection
- * pill's label, shown whenever River is loading or refreshing in the
- * background. They take the pill's text colour, so they match every
- * connection state.
- *
- * The span stays mounted; `data-active` opens it. Its width, margin and
- * opacity transition together over 300ms, and since the pill centres its
- * content, the widening span glides the label left as the dots fade in, and
- * back right as they fade out. */
+/* Keep mounted for fade-out; animating width also shifts the pill's centred label. */
 .pill-activity {
     display: inline-flex;
     align-items: center;
@@ -369,13 +333,12 @@
     height: 3px;
     border-radius: 9999px;
     background-color: currentColor;
-    /* Each dot a step behind the one on its left, so the crest travels
-     * across the row like a wave. */
+
     animation: pill-activity-bob 1.2s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * 0.12s);
 }
 
-/* Idle: the span is closed and transparent, so stop the bob. */
+
 .pill-activity:not([data-active="true"]) .pill-activity-dot {
     animation-play-state: paused;
 }
@@ -385,8 +348,7 @@
     50%      { opacity: 1;    transform: translateY(-1.5px); }
 }
 
-/* Reduced motion: the dots still fade, but the space opens at once so the
- * label never glides, and the wave becomes an opacity shimmer. */
+
 @media (prefers-reduced-motion: reduce) {
     .pill-activity {
         transition: opacity 300ms ease;
@@ -398,12 +360,7 @@
     }
 }
 
-/* The connection pill's small dots (`.pill-activity-dot`) anywhere else
- * (loading_dots.rs `SmallDots`): the same dots, gap and wave, but always
- * open, since they are shown for exactly as long as they are mounted. They
- * take the `color` they inherit; every current use sets `text-accent`. The
- * pill's reduced-motion shimmer applies to them too, since it targets
- * `.pill-activity-dot`. */
+
 .small-dots {
     display: inline-flex;
     align-items: center;
@@ -412,11 +369,7 @@
     flex-shrink: 0;
 }
 
-/* Toast (toast.rs): one at a time, centred at the top of the UI. Fixed to the
- * window, above every modal (z-50) whatever the DOM order, and clear of the
- * phone's notch and status bar. At the top it never covers the composer or
- * the loading dots docked above it. `width: max-content` capped by
- * `max-width` lets a long message wrap instead of running off a phone. */
+/* Above modals (z-50); top placement avoids the composer and docked loading dots. */
 .river-toast {
     position: fixed;
     top: max(1rem, env(safe-area-inset-top));
@@ -431,7 +384,7 @@
     animation: river-toast-in 150ms ease-out;
 }
 
-/* Slides down from the top edge as it fades in. */
+
 @keyframes river-toast-in {
     from { opacity: 0; transform: translate(-50%, -8px); }
     to   { opacity: 1; transform: translate(-50%, 0); }

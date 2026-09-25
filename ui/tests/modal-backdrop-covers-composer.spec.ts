@@ -1,18 +1,9 @@
 import { test, expect, Page } from "@playwright/test";
 import { waitForApp } from "./example-room";
 
-// A modal's dimming backdrop must paint over the message composer.
-//
-// The composer bar is `relative z-50` (it has to sit above its own z-40
-// emoji / @mention click-catchers). The invite-member and create-room modals
-// used to put their backdrop at z-40, so it dimmed the whole app EXCEPT the
-// composer, which stayed bright in front of the overlay.
-//
-// `elementFromPoint` cannot see this: the modal's transparent full-viewport
-// centering wrapper (z-50) sits above both and would be returned either way.
-// `elementsFromPoint` returns the whole stack in paint order, top first, so
-// the backdrop has to come before every composer element at a point inside
-// the composer.
+// The composer needs z-50 above its own click-catchers; z-40 modal backdrops
+// previously left it undimmed. elementFromPoint only finds the modal's
+// transparent wrapper, so use elementsFromPoint to inspect the paint order.
 
 const ROOM_NAME = "Public Discussion Room";
 
@@ -26,7 +17,7 @@ async function selectRoom(page: Page) {
   await expect(page.getByTestId("message-composer")).toBeVisible();
 }
 
-/** Paint order at a point inside the composer, clear of the modal card. */
+// Sample near the composer's edge to avoid the modal card.
 async function backdropIsAboveComposer(page: Page, backdropTestId: string) {
   return page.evaluate((backdropTestId) => {
     const composer = document.querySelector(

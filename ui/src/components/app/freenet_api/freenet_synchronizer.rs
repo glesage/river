@@ -364,9 +364,7 @@ impl FreenetSynchronizer {
                             Some(armed) => {
                                 // Clear the web API so is_connected() returns false
                                 WEB_API.write().take();
-                                // A reply to anything sent on this now-dead
-                                // socket will never arrive, so stop waiting
-                                // on it rather than on the backstop.
+                                // Dead-socket requests cannot receive replies.
                                 node_activity::connection_reset();
                                 *SYNC_STATUS.write() = SynchronizerStatus::Disconnected;
                                 warn!(
@@ -532,8 +530,7 @@ impl FreenetSynchronizer {
                         {
                             Ok(()) => {
                                 info!("Connection established successfully");
-                                // Anything sent on the PREVIOUS socket will
-                                // never get a reply on this new one.
+                                // The new socket cannot answer requests sent on the old one.
                                 node_activity::connection_reset();
                                 // Do NOT reset the backoff on mere socket-open — an
                                 // open-then-die socket would reset it every cycle,

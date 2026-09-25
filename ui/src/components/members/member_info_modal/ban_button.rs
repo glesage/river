@@ -92,10 +92,8 @@ pub fn BanButton(member_to_ban: MemberId, can_ban: bool, nickname: String) -> El
             });
 
             crate::util::safe_spawn_local(async move {
-                // The user waits on the node from here: the delegate's
-                // signature, then the UPDATE carrying the ban. Moved into the
-                // deferred apply below, so it ends only once the UPDATE wait
-                // has taken over.
+                // Move the guard into the deferred apply to cover the handoff
+                // from signing to the UPDATE wait.
                 let busy = crate::components::app::node_activity::busy(
                     crate::components::app::node_activity::ActionKind::Saving,
                 );

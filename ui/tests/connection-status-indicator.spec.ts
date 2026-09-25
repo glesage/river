@@ -49,9 +49,7 @@ const STATUS_STATES = [
   { dot: "bg-green-500", label: "Connected" },
   { dot: "bg-yellow-500", label: "Connecting" },
   { dot: "bg-red-500", label: "Disconnected" },
-  // SynchronizerStatus::Error shows its message alone (no "Error:" prefix),
-  // so it has no fixed label. A no-sync build sits at Disconnected and never
-  // reaches it; "an error shows only its message" below covers it.
+  // Error has no fixed label and requires a test hook in no-sync; covered below.
 ];
 
 // Assert the visible pill renders a coherent connection state: its dot
@@ -96,8 +94,7 @@ async function expectCoherentState(visiblePill: Locator) {
   ).toBeTruthy();
 }
 
-// Drive `SYNC_STATUS` through the example-data test hook; "error" sets
-// `SynchronizerStatus::Error("WebSocket connection failed or timed out")`.
+
 async function setSyncStatus(page: Page, state: string) {
   await page.evaluate((s) => {
     (window as any).__riverTest.setSyncStatus(s);
@@ -112,8 +109,7 @@ test.describe("Connection status indicator on desktop (Bug #5)", () => {
     await waitForApp(page);
     await setSyncStatus(page, "error");
 
-    // The red pill already says it is an error, so no "Error:" prefix and no
-    // repeated category label in front of the message.
+
     const pill = page.locator(VISIBLE_PILL);
     await expect(pill.getByTestId("connection-status-label")).toHaveText(
       "WebSocket connection failed or timed out"

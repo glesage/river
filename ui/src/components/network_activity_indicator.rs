@@ -1,29 +1,5 @@
-//! The two loading indicators.
-//!
-//! - **Primary**: ten accent-blue dots riding one travelling sine wave, shown
-//!   inside the chat section only while the USER is waiting on the node's
-//!   reply to something they did (sending, reacting, creating or joining a
-//!   room, saving a setting), and only once that wait passes 500 ms. With a
-//!   room open they dock just above the composer and the history gains bottom
-//!   padding so they never cover the last message; with no room open they sit
-//!   in the no-room screen. A modal waiting on its own node call (the invite
-//!   modal, while its invitation is signed) draws them itself with
-//!   [`ModalActivityDots`], and the chat's copy steps aside meanwhile. Never
-//!   `position: fixed`.
-//! - **Secondary**: five small dots inside the connection pill, shown the
-//!   moment any background work starts (connecting, loading or re-syncing
-//!   rooms, refreshes, delegate saves, anything still travelling through
-//!   Freenet) and kept at least 1 s.
-//!
-//! Pure pieces decide what shows, so they are unit-testable natively:
-//!
-//! - `loading_reason` and `background_reason` say whether each is busy
-//!   **right now**.
-//! - `DisplayGate` decides whether dots are **on screen**, with each
-//!   indicator's `GateTiming`.
-//!
-//! [`NetworkActivityIndicator`], mounted once in `App`, owns both gates and the
-//! screen-reader live region.
+//! User-action waits appear in the chat or active modal; background work appears
+//! in the connection pill. A single [`NetworkActivityIndicator`] owns both gates.
 
 use crate::components::app::chat_delegate::{RoomsLoadState, ROOMS_LOAD_STATE};
 use crate::components::app::freenet_api::freenet_synchronizer::SynchronizerStatus;
@@ -33,20 +9,15 @@ use crate::components::app::{PENDING_INVITES, ROOMS, SYNC_STATUS};
 use crate::components::loading_dots::{small_dot_spans, wave_dot_spans};
 use dioxus::prelude::*;
 
-/// Whether the primary dots are on screen, and why. Written only by
-/// [`NetworkActivityIndicator`]'s effect (synchronously, a single `set`) and by
-/// its timers (inside `crate::util::defer`).
+// Written synchronously by the owner's effect and inside `defer` by its timers.
 static ACTIVITY_GATE: GlobalSignal<DisplayGate<LoadingReason>> =
     Global::new(|| DisplayGate::new(PRIMARY_TIMING));
 
-/// Whether the pill's dots are on screen. Same writers as `ACTIVITY_GATE`.
+// Same writers as ACTIVITY_GATE.
 static BACKGROUND_GATE: GlobalSignal<DisplayGate<BackgroundReason>> =
     Global::new(|| DisplayGate::new(SECONDARY_TIMING));
 
-/// The debounced, held reason to draw the primary dots for, or `None`.
-/// Subscribes the calling component, so it re-renders when the dots come and
-/// go.
-///
+
 /// `read()`, not `try_read()`: every write to the gate is a single `set` in a
 /// clean context, so no borrow outlives a statement and a render cannot meet
 /// one. A failed `try_read()` in a render, on the other hand, drops the
@@ -55,25 +26,15 @@ pub(crate) fn visible_activity() -> Option<LoadingReason> {
     ACTIVITY_GATE.read().visible_reason()
 }
 
-/// Why the pill's dots are on screen, if they are. Same `read()` reasoning as
-/// [`visible_activity`].
+/// Same `read()` reasoning as [`visible_activity`].
 pub(crate) fn background_activity() -> Option<BackgroundReason> {
     BACKGROUND_GATE.read().visible_reason()
 }
 
-/// Owns both loading decisions and their show/hide timing, and renders the
-/// screen-reader live region. Mounted once in `App` and never unmounted. The
-/// dots themselves are drawn by [`NetworkActivityDots`] in the chat section and
-/// [`PillActivityDots`] in the connection pill.
+/// Keep mounted once in `App` for the gates and screen-reader live region.
 #[component]
 pub fn NetworkActivityIndicator() -> Element {
-    // Reads signals only, never a captured value: this component is always
-    // mounted, so a memo over plain input would go stale for the session
-    // (freenet/river#291).
-    //
-    // On a contended read each input falls back to its IDLE value. The
-    // indicators are decorative: a blank lasting one macrotask (which the
-    // nudge corrects) is better than a false "busy" that lingers.
+    // Fall back to idle on contention: a brief blank is preferable to false activity.
     let reason = use_memo(move || {
         crate::util::signal_guard::anchor();
         let Ok(status) = SYNC_STATUS.try_read() else {
@@ -116,8 +77,7 @@ pub fn NetworkActivityIndicator() -> Element {
                 RoomsLoadState::Loaded
             }
         };
-        // Both guards live only inside this block, so none is still held if a
-        // later edit adds a write below.
+
         let rooms_syncing = 'syncing: {
             let Ok(rooms) = ROOMS.try_read() else {
                 crate::util::signal_guard::schedule_nudge();
@@ -145,7 +105,7 @@ pub fn NetworkActivityIndicator() -> Element {
         })
     });
 
-    // Show/hide timing, driven from the memos.
+
     use_effect(move || {
         crate::util::signal_guard::anchor();
         let Ok(r) = reason.try_read().map(|r| *r) else {
@@ -163,13 +123,11 @@ pub fn NetworkActivityIndicator() -> Element {
         drive_gate(&BACKGROUND_GATE, b);
     });
 
-    // The GATED reason, not the raw memo: the label obeys the same 500 ms
-    // debounce and 1 s minimum as the dots.
+    // Gate announcements with the dots, not the raw activity.
     let label = visible_activity().map(LoadingReason::label).unwrap_or("");
 
     rsx! {
-        // Always mounted: a live region only announces changes to content that
-        // was already in the DOM, so it must not come and go with the dots.
+        // Keep the live region mounted so screen readers announce content changes.
         span {
             class: "sr-only",
             role: "status",
@@ -180,10 +138,7 @@ pub fn NetworkActivityIndicator() -> Element {
     }
 }
 
-/// Feed a new busy/idle reading to `gate`. Called from an effect, so it uses
-/// `peek()` (the effect must not subscribe to the signal it writes, or it
-/// re-runs itself) and writes synchronously: the "never defer in use_effect"
-/// rule is about signals the effect reads.
+// Use peek() so the calling effect does not subscribe to its own writes.
 fn drive_gate<R: Copy + PartialEq + 'static>(
     gate: &'static GlobalSignal<DisplayGate<R>>,
     reason: Option<R>,
@@ -198,19 +153,10 @@ fn drive_gate<R: Copy + PartialEq + 'static>(
     }
 }
 
-/// How many [`ModalActivityDots`] are mounted. While any is, the chat's
-/// [`NetworkActivityDots`] draw nothing, so the dots are on screen once,
-/// inside the modal the user is looking at: the chat's copy would sit dimmed
-/// behind the modal's backdrop, and on mobile the chat isn't on screen at all.
-/// Written only inside `crate::util::defer`.
+// Suppress duplicate chat dots behind a modal. Written only inside `defer`.
 static DOTS_IN_MODAL: GlobalSignal<u32> = Global::new(|| 0);
 
-/// The primary dots, drawn only while [`visible_activity`] says so. `docked`
-/// pins them to the bottom-centre of the nearest positioned ancestor (the
-/// message history, directly above the composer); otherwise they sit in the
-/// flow. Render at most one at a time: tests and assistive tech address them
-/// by `data-testid`. They step aside while a modal shows its own
-/// ([`ModalActivityDots`]).
+/// Render at most one copy; `docked` requires a positioned message-history ancestor.
 #[component]
 pub fn NetworkActivityDots(docked: bool) -> Element {
     // Same `read()` reasoning as `visible_activity`.
@@ -220,9 +166,7 @@ pub fn NetworkActivityDots(docked: bool) -> Element {
     activity_dots(docked)
 }
 
-/// The primary dots inside a modal, in the flow, for a modal whose own wait
-/// they show (the invite modal while its invitation is signed). While mounted,
-/// the chat's copy is hidden.
+
 #[component]
 pub fn ModalActivityDots() -> Element {
     use_hook(|| {
@@ -243,9 +187,7 @@ fn activity_dots(docked: bool) -> Element {
     let Some(reason) = gate.visible_reason() else {
         return rsx! {};
     };
-    // A fresh wave each time the dots appear, and the SAME wave for as long as
-    // they stay: re-renders while shown (a reason change, the hold) must not
-    // restart the animation, and `shown_at` survives both.
+    // A stable seed prevents reason changes and holds from restarting the animation.
     let seed = gate.shown_at().map(f64::to_bits).unwrap_or(0);
     let placement = if docked {
         "river-flow river-flow--docked"
@@ -263,15 +205,8 @@ fn activity_dots(docked: bool) -> Element {
     }
 }
 
-/// Small dots riding a wave inside the connection pill while
-/// [`background_activity`] says so. `span`s, not `div`s: the pill's
-/// first `div` is its status dot, which connection-status-indicator.spec.ts
-/// reads.
-///
-/// Always mounted, so the dots can fade out: `data-active` says whether they
-/// are showing, and main.css transitions the span's width and opacity on it.
-/// The pill centres its content, so the widening span glides the label left
-/// as the dots appear, and back right as they go.
+/// Keep mounted for fade-out. Use spans: connection-status-indicator.spec.ts
+/// identifies the pill's first div as its status dot.
 #[component]
 pub fn PillActivityDots() -> Element {
     let active = background_activity().is_some();
@@ -286,8 +221,7 @@ pub fn PillActivityDots() -> Element {
     }
 }
 
-/// Re-evaluate `gate` after `delay_ms`. No cancellation is needed: `on_tick`
-/// is idempotent, so a stale timer is a no-op.
+// Stale ticks are harmless, so timers need no cancellation.
 fn schedule_gate_tick<R: Copy + PartialEq + 'static>(
     gate: &'static GlobalSignal<DisplayGate<R>>,
     delay_ms: f64,
@@ -314,10 +248,7 @@ fn schedule_gate_tick<R: Copy + PartialEq + 'static>(
     });
 }
 
-/// Why the primary dots are showing: what the user is waiting on. Variants
-/// are in priority order: when several apply, [`loading_reason`] picks the
-/// first. There is deliberately no variant for background work (connecting,
-/// loading or re-syncing rooms, refreshes): that belongs to the pill.
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum LoadingReason {
     JoiningRoom,
@@ -348,23 +279,19 @@ impl LoadingReason {
     }
 }
 
-/// Everything [`loading_reason`] looks at, snapshotted from signals by the
-/// component's memo.
+
 struct ActivityInputs<'a> {
     sync_status: &'a SynchronizerStatus,
     /// Any pending invite still `PendingSubscription` or `Subscribing`: the
     /// user accepted it and the room's data hasn't arrived yet.
     joining: bool,
-    /// `NodeActivity::user_reason`: the user's highest-priority pending action.
+
     user_action: Option<ActionKind>,
 }
 
-/// Whether the user is waiting on the node right now, and for what. `None`
-/// means they aren't.
+
 fn loading_reason(i: &ActivityInputs) -> Option<LoadingReason> {
-    // Only with a live socket: an action can't reach the node without one, and
-    // the pill explains a lost connection. This also keeps a `no-sync` build,
-    // which is `Disconnected` for good, quiet.
+    // The pill handles lost connections; no-sync builds stay Disconnected.
     if !matches!(i.sync_status, SynchronizerStatus::Connected) {
         return None;
     }
@@ -378,9 +305,7 @@ fn loading_reason(i: &ActivityInputs) -> Option<LoadingReason> {
     })
 }
 
-/// Why the pill's dots are showing. Variants are in priority order: when
-/// several apply, [`background_reason`] picks the first. Shown on the pill as
-/// `data-busy-reason` and as its tooltip.
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum BackgroundReason {
     Connecting,
@@ -403,8 +328,7 @@ impl BackgroundReason {
         }
     }
 
-    /// The pill's tooltip while the dots show. No trailing ellipsis: the dots
-    /// already say it is ongoing.
+    // No ellipsis: the dots already convey ongoing activity.
     pub(crate) fn label(self) -> &'static str {
         match self {
             BackgroundReason::Connecting => "Connecting to Freenet",
@@ -416,26 +340,20 @@ impl BackgroundReason {
     }
 }
 
-/// Everything [`background_reason`] looks at, snapshotted from signals by the
-/// component's memo.
+
 struct BackgroundInputs<'a> {
     sync_status: &'a SynchronizerStatus,
     /// False in a `no-sync` build, where `SYNC_STATUS` sits at `Disconnected`
     /// for good and must not read as "reconnecting".
     sync_enabled: bool,
     rooms_load_state: RoomsLoadState,
-    /// `SyncInfo::rooms_syncing_count` over the rooms in `ROOMS`.
+
     rooms_syncing: usize,
-    /// `NodeActivity::background_requests`: a request nobody is waiting on is
-    /// outstanding.
+
     requests: bool,
 }
 
-/// Whether background work is happening right now, and which. `None` means
-/// idle.
-///
-/// Every `SynchronizerStatus` variant is spelled out (no `_`), so a new variant
-/// is a compile error here rather than a silent "idle".
+// Keep the match exhaustive so new statuses cannot silently become idle.
 fn background_reason(i: &BackgroundInputs) -> Option<BackgroundReason> {
     match i.sync_status {
         SynchronizerStatus::Connecting => Some(BackgroundReason::Connecting),
@@ -443,9 +361,7 @@ fn background_reason(i: &BackgroundInputs) -> Option<BackgroundReason> {
         // `ConnectionLost` handler, which always arms a reconnect first.
         SynchronizerStatus::Disconnected if i.sync_enabled => Some(BackgroundReason::Reconnecting),
         SynchronizerStatus::Disconnected => None,
-        // Sometimes a backoff reconnect is armed, sometimes it is terminal
-        // ("Please refresh the page"); the red pill explains it, and the next
-        // attempt goes back to `Connecting`.
+        // Errors may be terminal; the red pill explains them until a new attempt.
         SynchronizerStatus::Error(_) => None,
         SynchronizerStatus::Connected => {
             if matches!(
@@ -464,23 +380,20 @@ fn background_reason(i: &BackgroundInputs) -> Option<BackgroundReason> {
     }
 }
 
-/// How long an indicator waits before appearing, and how long it stays once
-/// it has.
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct GateTiming {
     show_after_ms: f64,
     min_visible_ms: f64,
 }
 
-/// Primary: a user action must still be waiting 500 ms in, so quick replies
-/// never cause a blip; once shown, at least 1 s (shorter than the 1.5 s wave,
-/// so a short wait shows part of one ripple).
+// Debounce quick replies; hold visible dots to avoid flicker.
 const PRIMARY_TIMING: GateTiming = GateTiming {
     show_after_ms: 500.0,
     min_visible_ms: 1_000.0,
 };
 
-/// Secondary: at once, and at least 1 s, so even a quick refresh is visible.
+// Even a quick background refresh should be visible.
 const SECONDARY_TIMING: GateTiming = GateTiming {
     show_after_ms: 0.0,
     min_visible_ms: 1_000.0,
@@ -490,23 +403,19 @@ const SECONDARY_TIMING: GateTiming = GateTiming {
 enum GatePhase {
     #[default]
     Idle,
-    /// Busy, not shown yet. Becomes `Shown` at `since + show_after_ms`.
+
     Pending { since: f64 },
-    /// Busy and on screen since `shown_at`.
+
     Shown { shown_at: f64 },
     /// No longer busy, held on screen until `shown_at + min_visible_ms`.
     Holding { shown_at: f64 },
 }
 
-/// Whether an indicator is on screen. CSS can delay an element appearing but
-/// not delay one being removed from the DOM, so the timing lives here. No
-/// signals and no clock: every call takes `now` in ms. `R` is what is shown
-/// (`LoadingReason` for the primary, `BackgroundReason` for the pill).
+// Timing lives here because CSS cannot delay removal from the DOM.
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct DisplayGate<R> {
     phase: GatePhase,
-    /// Latest non-None reason. Kept through `Holding` so `data-reason` and the
-    /// screen-reader label don't blank out during the hold.
+    // Retained during Holding so the label does not blank out.
     reason: Option<R>,
     timing: GateTiming,
 }
@@ -524,8 +433,7 @@ impl<R: Copy + PartialEq> DisplayGate<R> {
         Self::new(self.timing)
     }
 
-    /// The busy state changed. Returns the new gate, plus a delay in ms after
-    /// which `on_tick` must run, if this transition armed a deadline.
+    /// Returns the new gate and an optional delay in ms before `on_tick` must run.
     fn on_reason(self, reason: Option<R>, now: f64) -> (Self, Option<f64>) {
         let kept = reason.or(self.reason);
         let with = |phase| Self {
@@ -534,7 +442,7 @@ impl<R: Copy + PartialEq> DisplayGate<R> {
             timing: self.timing,
         };
         match (self.phase, reason) {
-            // No debounce: on screen at once.
+
             (GatePhase::Idle, Some(_)) if self.timing.show_after_ms <= 0.0 => {
                 (with(GatePhase::Shown { shown_at: now }), None)
             }
@@ -545,7 +453,7 @@ impl<R: Copy + PartialEq> DisplayGate<R> {
             (GatePhase::Idle, None) => (self.idle(), None),
             // The debounce timer armed on entry still covers it.
             (GatePhase::Pending { since }, Some(_)) => (with(GatePhase::Pending { since }), None),
-            // Finished inside the debounce: never shown.
+
             (GatePhase::Pending { .. }, None) => (self.idle(), None),
             (GatePhase::Shown { shown_at }, Some(_)) => (with(GatePhase::Shown { shown_at }), None),
             (GatePhase::Shown { shown_at }, None) => {
@@ -556,8 +464,7 @@ impl<R: Copy + PartialEq> DisplayGate<R> {
                     (with(GatePhase::Holding { shown_at }), Some(until - now))
                 }
             }
-            // Busy again mid-hold: back on, with the ORIGINAL clock. The
-            // minimum is on total visible time, not per flicker.
+            // The minimum applies to total visible time, not each burst of activity.
             (GatePhase::Holding { shown_at }, Some(_)) => {
                 (with(GatePhase::Shown { shown_at }), None)
             }
@@ -565,8 +472,7 @@ impl<R: Copy + PartialEq> DisplayGate<R> {
         }
     }
 
-    /// A timer armed by `on_reason` fired. Idempotent: a stale or early timer
-    /// changes nothing, so timers never need cancelling.
+
     fn on_tick(self, now: f64) -> Self {
         match self.phase {
             // `now`, not `since + show_after_ms`: the minimum counts from when
@@ -585,10 +491,7 @@ impl<R: Copy + PartialEq> DisplayGate<R> {
         }
     }
 
-    /// The time at which the next `on_tick` would change something, if any.
-    /// A timer can fire a millisecond early against `Date.now()`; if it was the
-    /// only one armed, the caller re-arms from this instead of leaving the gate
-    /// stuck in `Pending` or, worse, `Holding` forever.
+
     fn pending_deadline(&self) -> Option<f64> {
         match self.phase {
             GatePhase::Pending { since } => Some(since + self.timing.show_after_ms),
@@ -597,7 +500,7 @@ impl<R: Copy + PartialEq> DisplayGate<R> {
         }
     }
 
-    /// What to render: `Some` only in `Shown` / `Holding`.
+
     fn visible_reason(&self) -> Option<R> {
         match self.phase {
             GatePhase::Shown { .. } | GatePhase::Holding { .. } => self.reason,
@@ -605,8 +508,7 @@ impl<R: Copy + PartialEq> DisplayGate<R> {
         }
     }
 
-    /// When the dots came on screen, while they are on screen. Stable through
-    /// `Holding` and back to `Shown`, since the hold never resets the clock.
+
     fn shown_at(&self) -> Option<f64> {
         match self.phase {
             GatePhase::Shown { shown_at } | GatePhase::Holding { shown_at } => Some(shown_at),
@@ -666,9 +568,7 @@ mod tests {
         assert_eq!(loading_reason(&i), Some(LoadingReason::JoiningRoom));
     }
 
-    /// Connecting and reconnecting are background work: they never show the
-    /// primary dots, even with a user action pending. A `no-sync` build, which
-    /// is `Disconnected` for good, stays quiet too.
+
     #[test]
     fn the_primary_needs_a_live_socket() {
         for status in [
@@ -702,7 +602,6 @@ mod tests {
         }
     }
 
-    // ---- Background (pill) ----------------------------------------------
 
     fn quiet(sync_status: &SynchronizerStatus, sync_enabled: bool) -> BackgroundInputs<'_> {
         BackgroundInputs {
@@ -808,7 +707,6 @@ mod tests {
         }
     }
 
-    // ---- DisplayGate ----------------------------------------------------
 
     const C: Option<LoadingReason> = Some(LoadingReason::Sending);
 
@@ -853,8 +751,7 @@ mod tests {
         assert_eq!(g.visible_reason(), C);
     }
 
-    /// `shown_at` is when the tick actually fired, not `since + 500`, so the
-    /// minimum is measured from when the user could first see the dots.
+
     #[test]
     fn a_late_tick_measures_the_minimum_from_when_it_fired() {
         let g = gate(GatePhase::Pending { since: 0.0 }).on_tick(1200.0);
@@ -867,7 +764,7 @@ mod tests {
         assert_eq!(g.on_tick(499.0), g);
     }
 
-    /// An early tick is a no-op, so the caller needs to know when to try again.
+
     #[test]
     fn pending_deadline_tells_an_early_timer_when_to_retry() {
         assert_eq!(
@@ -913,8 +810,7 @@ mod tests {
         assert_eq!(g.visible_reason(), None);
     }
 
-    /// The 1 s is a minimum on total visible time, not a fresh 1 s after
-    /// every flicker.
+
     #[test]
     fn busy_again_during_the_hold_keeps_the_original_clock() {
         let g = gate(GatePhase::Holding { shown_at: 500.0 });
@@ -999,8 +895,7 @@ mod tests {
         );
     }
 
-    /// The pill's gate has no debounce: busy is on screen the same instant,
-    /// and still held for the 1 s minimum.
+
     #[test]
     fn the_secondary_gate_shows_at_once_and_holds_a_second() {
         let busy = Some(BackgroundReason::Requests);
@@ -1017,7 +912,7 @@ mod tests {
         assert_eq!(g.on_tick(1_100.0).visible_reason(), None);
     }
 
-    /// Product requirements: changing any should be a conscious edit here too.
+
     #[test]
     fn timing_constants_are_as_specified() {
         assert_eq!(PRIMARY_TIMING.show_after_ms, 500.0);

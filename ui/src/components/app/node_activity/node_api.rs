@@ -1,9 +1,5 @@
-//! The one door every request to the node goes through.
-//!
-//! `WEB_API` holds a [`NodeApi`] rather than a bare `WebApi`, so each request
-//! is recorded in the ledger the moment it is handed to the socket, with no
-//! call site having to remember to do it. `send` has `WebApi::send`'s exact
-//! signature, so callers are unchanged.
+//! `WEB_API` holds [`NodeApi`] rather than a bare `WebApi` so callers cannot
+//! send requests without recording them in the activity ledger.
 
 use super::ledger::RequestKind;
 use freenet_stdlib::client_api::{
@@ -21,8 +17,6 @@ impl NodeApi {
         Self { inner }
     }
 
-    /// Send `request` to the node and, once it is on the socket, record it as
-    /// awaiting a reply.
     pub async fn send(&mut self, request: ClientRequest<'static>) -> Result<(), ClientApiError> {
         let kind = request_kind(&request);
         self.inner.send(request).await?;
@@ -48,8 +42,7 @@ fn request_kind(request: &ClientRequest<'_>) -> Option<RequestKind> {
             DelegateRequest::ApplicationMessages { key, .. } => {
                 Some(RequestKind::Delegate(key.clone()))
             }
-            // Answered with a `DelegateResponse` for the delegate's key, like
-            // any other delegate request, so it is tracked as one.
+            // Registration replies use `DelegateResponse`, not `HostResponse::Ok`.
             DelegateRequest::RegisterDelegate { delegate, .. } => {
                 Some(RequestKind::Delegate(delegate.key().clone()))
             }
@@ -99,8 +92,6 @@ mod tests {
         );
     }
 
-    /// A PUT's reply names the contract the container derives, so the ledger
-    /// must record that same key.
     #[test]
     fn a_put_is_classified_by_its_containers_key() {
         use crate::constants::ROOM_CONTRACT_WASM;
@@ -140,10 +131,6 @@ mod tests {
         assert_eq!(request_kind(&msg), Some(RequestKind::Delegate(key)));
     }
 
-    /// The node answers a registration with a `DelegateResponse` for the
-    /// delegate's key, so it must be tracked exactly like a delegate message
-    /// to that key, or the reply settles the wrong request and the
-    /// registration lingers until the backstop.
     #[test]
     fn a_delegate_registration_is_tracked_as_a_delegate_request() {
         use freenet_stdlib::prelude::{

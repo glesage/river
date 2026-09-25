@@ -108,13 +108,6 @@ pub fn InviteMemberModal(is_active: Signal<bool>) -> Element {
     }
 }
 
-/// The modal's body: the invitation once it is signed, or why it couldn't be.
-///
-/// While the signature is pending there is no spinner: the slot holds the
-/// primary loading dots, which appear only if the wait passes 500 ms, so a
-/// quick signature shows nothing at all. The invitation is created on mount,
-/// never while the modal is closed, so opening it can't flash a leftover
-/// value.
 #[component]
 fn InviteMemberBody(is_active: Signal<bool>, room: Memo<Option<RoomData>>) -> Element {
     // `peek`, not a subscription: an update to the room (a message arriving)
@@ -219,10 +212,6 @@ fn InviteMemberBody(is_active: Signal<bool>, room: Memo<Option<RoomData>>) -> El
     }
 }
 
-/// Build a fresh invitation to `room_data`'s room. The delegate signs it
-/// (falling back to the local key), and the user waits on that signature, so
-/// it is tracked as a user action: the primary loading dots show if it runs
-/// past 500 ms.
 async fn create_invitation(room_data: Option<RoomData>) -> Result<Invitation, String> {
     let Some(room_data) = room_data else {
         return Err("No room selected".to_string());

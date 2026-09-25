@@ -3635,9 +3635,6 @@ mod tests {
              timestamp. `should_unhide_for_inbound_dm(None, ts)` would satisfy \
              a looser pin while making the wrapper a permanent no-op."
         );
-        // The inbound path calls the background flavour, which does the same
-        // unhide but counts its save as background work rather than a user
-        // action.
         assert!(
             seg.contains(&format!(
                 "{}{}",
@@ -7187,8 +7184,6 @@ pub fn hide_dm_thread(
             }
         });
         if changed {
-            // An explicit user action (archiving from the rail), so the save
-            // is one the user waits on.
             crate::util::safe_spawn_local(async {
                 let saved = crate::components::app::node_activity::track(
                     crate::components::app::node_activity::ActionKind::Saving,
@@ -7211,14 +7206,10 @@ pub fn hide_dm_thread(
 /// exists for the pair. Also the API a future "Hidden conversations"
 /// admin path would use.
 pub fn unhide_dm_thread(room_owner_vk: ed25519_dalek::VerifyingKey, peer: MemberId) {
-    // Every caller is an explicit user action (Undo, Un-archive, sending a
-    // DM), so the save is one the user waits on. The inbound-sync path goes
-    // through `unhide_dm_thread_in_background` instead.
+    // Inbound sync must use `unhide_dm_thread_in_background`, not this user path.
     unhide_dm_thread_saving(room_owner_vk, peer, true);
 }
 
-/// [`unhide_dm_thread`] for the inbound-sync path: the same unhide, with its
-/// save counted as background work rather than a user action.
 fn unhide_dm_thread_in_background(room_owner_vk: ed25519_dalek::VerifyingKey, peer: MemberId) {
     unhide_dm_thread_saving(room_owner_vk, peer, false);
 }
@@ -7253,8 +7244,7 @@ fn unhide_dm_thread_saving(
         // would resurrect on the next reload — the in-memory
         // tombstone is session-only by design.
         crate::util::safe_spawn_local(async move {
-            // Only an explicit user action waits visibly; named so the guard
-            // lives across the save.
+            // Keep the guard bound until the save completes.
             let _busy = by_user.then(|| {
                 crate::components::app::node_activity::busy(
                     crate::components::app::node_activity::ActionKind::Saving,

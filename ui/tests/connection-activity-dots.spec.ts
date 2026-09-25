@@ -1,34 +1,15 @@
 import { test, expect, Locator, Page } from "@playwright/test";
 import { expectShimmerInPlace } from "./motion";
 
-// Coverage for the SECONDARY loading indicator:
-// five small dots riding a wave inside the connection pill, shown the moment
-// any background work starts (connecting, reconnecting, loading or re-syncing
-// rooms, a request nobody is waiting on) and held at least 1s. They fade in
-// and out over 300ms while the pill's label glides aside to make room.
-//
-// The dots span stays mounted so it can fade out; `data-active="true"` is
-// what "showing" means.
-//
-// The pill is mounted twice (rooms rail, and the mobile no-room screen) and
-// both copies share their test ids, so `:visible` picks the one the user sees.
-//
-// PREMISES (see `example_data.rs::install_test_hooks`):
-//   - A no-sync build starts `Disconnected` and never writes `SYNC_STATUS` on
-//     its own, and a no-sync `Disconnected` is NOT reconnecting, so the pill
-//     is idle at load.
-//   - This build's `ROOMS_LOAD_STATE` sits at `Loading` forever, so
-//     `setSyncStatus("connected")` alone is background work (rooms loading).
-//     `setRoomsLoadState("loaded")` ends it (and clears ROOMS / CURRENT_ROOM
-//     as a side effect, which these tests don't depend on).
-//   - `beginBackgroundRequest()` / `endBackgroundRequest()` record and settle
-//     a request nobody is waiting on; `awaitRoomUpdate()` +
-//     `sendRoomUpdate()` record one the user IS waiting on.
+// The dots stay mounted for fade-out; `data-active` determines visibility.
+// Both pill copies share test IDs, so `:visible` selects the active placement.
+// No-sync stays Disconnected with rooms Loading until the test hooks change it.
+// `setRoomsLoadState("loaded")` also clears ROOMS / CURRENT_ROOM.
 
 const VISIBLE_PILL = '[data-testid="connection-status-indicator"]:visible';
-// The visible pill's dots span, showing or not.
+
 const DOTS_SPAN = `${VISIBLE_PILL} [data-testid="connection-activity-dots"]`;
-// The same span, only while it is showing.
+
 const VISIBLE_DOTS = `${DOTS_SPAN}[data-active="true"]`;
 
 async function waitForApp(page: Page) {
@@ -45,15 +26,14 @@ async function hook(page: Page, name: string, arg?: string) {
   );
 }
 
-// Connected with nothing going on in the background.
+
 async function quietConnected(page: Page) {
   await hook(page, "setSyncStatus", "connected");
   await hook(page, "setRoomsLoadState", "loaded");
   await expect(page.locator(VISIBLE_DOTS)).toHaveCount(0, { timeout: 3_000 });
 }
 
-// Logs { t, present } each time the visible pill's dots come or go, measured
-// in the page so round-trip latency stays out of the timing assertions.
+// Measure in-page to exclude Playwright round-trip latency.
 async function recordDots(
   page: Page
 ): Promise<() => Promise<{ t: number; present: boolean }[]>> {
@@ -79,7 +59,7 @@ async function recordDots(
     }).observe(document.body, {
       childList: true,
       subtree: true,
-      // The span stays mounted; only this attribute says it is showing.
+
       attributes: true,
       attributeFilter: ["data-active"],
     });
@@ -95,9 +75,7 @@ async function pill(page: Page): Promise<Locator> {
 
 type Transition = { property: string; duration: number };
 
-// Start a background request, and in the same page task wait for the dots
-// span to open, then report the transitions running on it. Done in-page so a
-// slow test runner can't miss a 300ms transition.
+// Capture transitions in-page so a slow runner cannot miss the 300ms fade.
 async function openDots(page: Page): Promise<Transition[]> {
   return page.evaluate(async () => {
     const w = window as any;
@@ -122,8 +100,7 @@ async function openDots(page: Page): Promise<Transition[]> {
   });
 }
 
-// Settle the background request, wait out the gate's 1s hold until the span
-// starts closing, and report the transitions running on it.
+
 async function closeDots(page: Page): Promise<Transition[]> {
   return page.evaluate(async () => {
     const w = window as any;
@@ -187,11 +164,11 @@ for (const { label, viewport } of [
       await expect(dots.locator(".pill-activity-dot")).toHaveCount(5);
       const visible = await pill(page);
       await expect(visible).toHaveAttribute("aria-busy", "true");
-      // Why it is busy, for devtools and as the pill's tooltip.
+
       await expect(visible).toHaveAttribute("data-busy-reason", "connecting");
       await expect(visible).toHaveAttribute("title", "Connecting to Freenet");
 
-      // No debounce: on screen within a couple of frames of the change.
+
       const t0 = await page.evaluate(() => (window as any).__t0);
       const shown = (await readLog()).find((e) => e.present);
       expect(shown).toBeTruthy();
@@ -201,9 +178,7 @@ for (const { label, viewport } of [
     test("the pill's status dot and label are unchanged by the dots", async ({
       page,
     }) => {
-      // connection-status-indicator.spec.ts reads the pill's FIRST div as its
-      // status dot and its whole text as the label; the dots must not
-      // disturb either.
+      // Preserve the selectors used by connection-status-indicator.spec.ts.
       await page.goto("/");
       await waitForApp(page);
       await hook(page, "setSyncStatus", "connecting");
@@ -269,7 +244,7 @@ for (const { label, viewport } of [
 
       await hook(page, "awaitRoomUpdate");
       await hook(page, "sendRoomUpdate");
-      // The primary dots show instead (after their 500ms debounce).
+
       await expect(page.getByTestId("network-activity-indicator")).toBeVisible();
       await expect(page.locator(VISIBLE_DOTS)).toHaveCount(0);
     });
@@ -293,13 +268,11 @@ for (const { label, viewport } of [
       await hook(page, "setSyncStatus", "connecting");
       const dot = page.locator(`${VISIBLE_DOTS} .pill-activity-dot`).first();
       await expect(dot).toBeVisible();
-      // main.css: `river-flow-shimmer`, a 2s opacity-only cycle.
+
       await expectShimmerInPlace(dot, 2_000);
     });
 
-    // Status stays `connected` in the tests below (a background request
-    // drives the dots), so the label's text, and therefore its own width,
-    // never changes: any sideways move is the dots making room.
+    // Keep the label text fixed to isolate movement caused by the dots.
 
     test("the dots fade in and out over 300ms", async ({ page }) => {
       await page.goto("/");
@@ -318,7 +291,7 @@ for (const { label, viewport } of [
         .poll(() => span.evaluate((el) => getComputedStyle(el).width))
         .toBe("23px");
 
-      // Still mounted while it fades out, rather than vanishing.
+
       const closing = await closeDots(page);
       expect(durationOf(closing, "opacity"), "opacity fades out").toBe(300);
       expect(durationOf(closing, "width"), "the space closes").toBe(300);
@@ -336,14 +309,13 @@ for (const { label, viewport } of [
       await page.goto("/");
       await waitForApp(page);
       await quietConnected(page);
-      // The pill's first span is its label (its first div is the status dot).
+
       const label = page.locator(VISIBLE_PILL).locator("span").first();
       await expect(label).toHaveText("Connected");
       const labelX = () => label.evaluate((el) => el.getBoundingClientRect().x);
       const idleX = await labelX();
 
-      // Open the dots, then pause their transitions halfway and seek there:
-      // a deterministic mid-glide sample, where a wall-clock one could flake.
+      // Seek to mid-transition to avoid flaky wall-clock sampling.
       const midX = await page.evaluate(async () => {
         const w = window as any;
         const pill = Array.from(
@@ -381,7 +353,7 @@ for (const { label, viewport } of [
         openX + 0.5
       );
 
-      // Closed again (after the 1s hold and the 300ms fade): back home.
+
       await hook(page, "endBackgroundRequest");
       await expect.poll(labelX, { timeout: 3_000 }).toBeGreaterThan(idleX - 1);
       expect(await labelX()).toBeLessThan(idleX + 1);
@@ -397,8 +369,7 @@ for (const { label, viewport } of [
           els.map((el) => parseFloat(getComputedStyle(el).animationDelay))
         );
       expect(delays).toHaveLength(5);
-      // Each dot a step behind its left neighbour: the crest travels. Fails
-      // if the `--i` wiring breaks and they bob in unison.
+
       for (let i = 1; i < delays.length; i++) {
         expect(delays[i]).toBeGreaterThan(delays[i - 1]);
       }

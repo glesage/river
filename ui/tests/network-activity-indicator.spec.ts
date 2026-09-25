@@ -2,42 +2,9 @@ import { test, expect, Page } from "@playwright/test";
 import { waitForApp, openRoomWithComposer } from "./example-room";
 import { expectShimmerInPlace } from "./motion";
 
-// Coverage for the PRIMARY loading indicator:
-// ten accent-blue dots shown only while the user is waiting on the node's
-// reply to something they did (sending, reacting, creating or joining a room,
-// saving a setting). Background work (connecting, loading or re-syncing rooms,
-// refreshes) never shows them: that belongs to the small dots in the
-// connection pill (connection-activity-dots.spec.ts). The dots are debounced
-// 500ms, so a quick reply shows nothing, and held at least 1s once shown.
-//
-// PLACEMENT: inside the chat section, never fixed to the window. With a room
-// open the dots dock at the bottom of the message history, just above the
-// composer, and the history gains bottom padding while they show so they never
-// cover the last message. With no room open they sit in the flow of the
-// no-room screen.
-//
-// PREMISES (see `example_data.rs::install_test_hooks`):
-//   - A no-sync build starts `Disconnected` and never writes `SYNC_STATUS` on
-//     its own. The primary needs `Connected`, so every busy test first calls
-//     `setSyncStatus("connected")`.
-//   - `beginUserAction(kind?)` / `endUserAction()` hold a scoped user action
-//     (kind: "sending" (default) | "saving" | "creating-room").
-//   - `awaitRoomUpdate()`, `sendRoomUpdate()`, `answerRoomUpdate()`,
-//     `failRoomUpdate()` walk a room change through the real attach-on-send
-//     path: queued, carried by an UPDATE, then answered or failed.
-//   - `beginBackgroundRequest()` / `endBackgroundRequest()` record and settle
-//     a request nobody is waiting on.
-//
-// Timing rules: appearing takes ~500ms (the default `toBeVisible()` timeout
-// absorbs it); disappearing can take up to 1s (the hold), so every "gone"
-// assertion uses `toHaveCount(0, { timeout: 3_000 })`.
-//
-// State/timer/content coverage below (gate behaviour, hold timing, reasons,
-// the wave's own motion) runs once per Playwright project: none of it varies
-// with screen size. Responsive placement — docking above the composer, the
-// history's spacer, tap-through geometry, and the mobile-only panel-hiding
-// case — runs once per viewport size further down, since those are the only
-// things here that actually depend on layout.
+// No-sync stays Disconnected until a test hook changes it; the primary
+// indicator requires Connected. Room-update hooks exercise the real
+// attach-on-send path without a node.
 
 const INDICATOR_TESTID = "network-activity-indicator";
 const DOT_TESTID = "network-activity-dot";
@@ -58,7 +25,7 @@ async function hook(page: Page, name: string, arg?: string) {
   );
 }
 
-// Connected, then a scoped user action: the primary's busy state.
+
 async function startUserAction(page: Page, kind?: string) {
   await setSyncStatus(page, "connected");
   await hook(page, "beginUserAction", kind);
@@ -68,10 +35,7 @@ async function endUserAction(page: Page) {
   await hook(page, "endUserAction");
 }
 
-// Wait until the gate is Idle, not merely "no dots in the DOM": a count-0
-// check alone can pass while a debounce is still pending and the dots are
-// about to appear. Past the debounce, a pending show has either mounted (and
-// the count waits out its hold) or been cancelled.
+// Wait past the debounce: a count-0 check alone can pass before dots appear.
 async function settleIdle(page: Page) {
   await page.waitForTimeout(600);
   await expect(page.getByTestId(INDICATOR_TESTID)).toHaveCount(0, {
@@ -81,12 +45,7 @@ async function settleIdle(page: Page) {
 
 type PresenceEvent = { t: number; present: boolean };
 
-// Installs a MutationObserver on document.body that logs
-// { t: performance.now(), present } to window.__presenceLog every time
-// whether the indicator is in the DOM flips — including the initial state.
-// Measuring from inside the page (rather than polling from Playwright) keeps
-// round-trip latency out of the millisecond-level assertions below. Returns
-// a function that reads the log back.
+// Measure in-page to exclude Playwright round-trip latency.
 async function recordPresence(
   page: Page
 ): Promise<() => Promise<PresenceEvent[]>> {
@@ -105,8 +64,7 @@ async function recordPresence(
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
-    // Kept reachable only so it isn't a mystery global if inspected; nothing
-    // here needs to disconnect it (the page is torn down with the test).
+
     w.__presenceObserver = observer;
   }, INDICATOR_TESTID);
 
@@ -114,9 +72,7 @@ async function recordPresence(
     page.evaluate(() => (window as any).__presenceLog);
 }
 
-// First logged transition to `present`, at or after `after`. Log entries
-// alternate (the indicator mounts/unmounts, it never "flickers" in place),
-// so this is enough to pull out a specific show/hide pair.
+
 function findTransition(
   log: PresenceEvent[],
   present: boolean,
@@ -138,10 +94,7 @@ function boxesIntersect(a: Rect, b: Rect): boolean {
 
 test.describe("Network activity indicator", () => {
   test("idle no-sync build renders no indicator", async ({ page }) => {
-    // This is the premise every other spec in the suite relies on: without
-    // a test-hook nudge, a no-sync example build never shows the dots, so
-    // their appearance elsewhere in the suite cannot be blamed on load
-    // noise from this feature.
+
     await page.goto("/");
     await waitForApp(page);
     await page.waitForTimeout(1_500);
@@ -227,7 +180,7 @@ test.describe("Network activity indicator", () => {
 
     await startUserAction(page);
     await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
-    // Already visible for longer than the 1s minimum before we end it.
+
     await page.waitForTimeout(2_500);
 
     await page.evaluate(() => {
@@ -281,9 +234,7 @@ test.describe("Network activity indicator", () => {
     const hidden = findTransition(log, false, shown!.t);
     expect(hidden).toBeTruthy();
 
-    // The "clock not reset" rule: total visible time is bounded by the
-    // ORIGINAL shown_t + the minimum, plus slack — not by the last busy
-    // spell restarting a fresh 1s.
+
     expect(hidden!.t).toBeLessThanOrEqual(shown!.t + 1_000 + 500);
   });
 
@@ -295,9 +246,7 @@ test.describe("Network activity indicator", () => {
     const dots = page.getByTestId(DOT_TESTID);
     await expect(dots).toHaveCount(10);
 
-    // Every dot runs two animations (`.river-flow-dot` in main.css): the
-    // travelling wave (1.5s) and a slower per-dot swell (2.2-3.4s). Told
-    // apart by duration, not by keyframe name or shorthand order.
+    // Distinguish wave (1.5s) from swell (2.2–3.4s) without relying on animation order.
     const isWave = (t: { duration: number }) => Math.abs(t.duration - 1_500) < 50;
 
     const perDot = await dots.evaluateAll((els) =>
@@ -324,24 +273,20 @@ test.describe("Network activity indicator", () => {
       return matches[0];
     });
 
-    // One wave: every dot rides the same 1.5s period ...
+
     for (const w of waves) {
       expect(w.duration).toBeGreaterThanOrEqual(1_490);
       expect(w.duration).toBeLessThanOrEqual(1_510);
     }
-    // ... with the crest travelling strictly left to right. Fails if the
-    // `--i` wiring breaks and the dots move in unison, or if the random
-    // nudge ever grows enough to reorder them.
+
     for (let i = 1; i < waves.length; i++) {
       expect(waves[i].delay).toBeGreaterThan(waves[i - 1].delay);
     }
 
-    // Each dot also swells on its own period, so the row never repeats.
+
     expect(new Set(swells.map((s) => s.duration)).size).toBeGreaterThan(1);
 
-    // "Each one visibly varies": freeze every dot's swell at its start and
-    // its wave at the same phase, then read the rendered offset. Identical
-    // amplitude and curve would collapse these to one value.
+    // Freeze swell and align wave phases to isolate amplitude/curve variation.
     const offsets = await dots.evaluateAll((els) => {
       const ys: number[] = [];
       for (const el of els as HTMLElement[]) {
@@ -354,13 +299,11 @@ test.describe("Network activity indicator", () => {
         swell.pause();
         swell.currentTime = 0;
         wave.pause();
-        // The same phase (a quarter into its own cycle), not the same
-        // clock time: the delay stagger alone would already differ, and is
-        // covered above.
+        // Account for stagger so it cannot masquerade as amplitude variation.
         wave.currentTime = waveDelay + 1_500 / 4;
         ys.push(el.getBoundingClientRect().y);
       }
-      // Resume real playback; nothing after this reads these dots again.
+
       for (const el of els as HTMLElement[]) {
         el.getAnimations().forEach((a) => a.play());
       }
@@ -379,13 +322,12 @@ test.describe("Network activity indicator", () => {
     await startUserAction(page);
 
     await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
-    // main.css: `river-flow-shimmer`, a 3s opacity-only cycle.
+
     await expectShimmerInPlace(page.getByTestId(DOT_TESTID).first(), 3_000);
   });
 
   test("a user action shows nothing unless connected", async ({ page }) => {
-    // Connecting and reconnecting are background work for the pill; the
-    // primary only follows what the user waits on from a live node.
+
     await page.goto("/");
     await waitForApp(page);
     await hook(page, "beginUserAction");
@@ -408,10 +350,7 @@ test.describe("Network activity indicator", () => {
     await expect(indicator).toHaveAttribute("data-reason", "saving");
 
     await endUserAction(page);
-    // Still visible and still reporting "saving" while held — not blank.
-    // The wait is what makes this a check on the hold: without it the
-    // assertion can pass in the few ms before a hold-less build unmounts
-    // the dots.
+    // Without this wait, assertions could pass before a hold-less build unmounts.
     await page.waitForTimeout(500);
     await expect(indicator).toHaveCount(1);
     await expect(indicator).toHaveAttribute("data-reason", "saving");
@@ -420,9 +359,7 @@ test.describe("Network activity indicator", () => {
   });
 
   test("background work never shows the primary dots", async ({ page }) => {
-    // Connected with rooms still loading (this build's ROOMS_LOAD_STATE
-    // sits at `Loading`) plus an outstanding background request: busy for
-    // the pill, idle for the primary.
+    // ROOMS_LOAD_STATE also stays Loading in this build.
     await page.goto("/");
     await waitForApp(page);
     await setSyncStatus(page, "connected");
@@ -443,14 +380,14 @@ test.describe("User actions", () => {
     await setSyncStatus(page, "connected");
     await settleIdle(page);
 
-    // Queued, then carried by an UPDATE.
+
     await hook(page, "awaitRoomUpdate");
     await hook(page, "sendRoomUpdate");
     const indicator = page.getByTestId(INDICATOR_TESTID);
     await expect(indicator).toBeVisible();
     await expect(indicator).toHaveAttribute("data-reason", "sending");
 
-    // Still waiting on the node.
+
     await page.waitForTimeout(1_200);
     await expect(indicator).toBeVisible();
 
@@ -486,8 +423,7 @@ test.describe("User actions", () => {
   });
 
   test("a reply faster than 500ms shows nothing", async ({ page }) => {
-    // The everyday case the debounce exists for: most replies come back
-    // well under 500ms, so they must never cause a visible blip.
+
     await page.goto("/");
     await waitForApp(page);
     await setSyncStatus(page, "connected");
@@ -527,13 +463,13 @@ for (const { label, viewport, isMobile } of [
       await expect(indicator).toHaveAttribute("data-reason", "sending");
       await expect(page.getByTestId(DOT_TESTID)).toHaveCount(10);
 
-      // In the flow of the chat section, not fixed to the window.
+
       const position = await indicator.evaluate(
         (el) => getComputedStyle(el).position
       );
       expect(position).not.toBe("fixed");
 
-      // Centred in the same column as the Welcome copy.
+
       const heading = page.getByRole("heading", { name: "Welcome to River" });
       const [box, headingBox] = await Promise.all([
         indicator.boundingBox(),
@@ -544,7 +480,7 @@ for (const { label, viewport, isMobile } of [
       const centre = box!.x + box!.width / 2;
       const headingCentre = headingBox!.x + headingBox!.width / 2;
       expect(Math.abs(centre - headingCentre)).toBeLessThanOrEqual(2);
-      // Below the Welcome copy, as part of it.
+
       expect(box!.y).toBeGreaterThan(headingBox!.y + headingBox!.height);
 
       await expect(page.getByTestId(STATUS_TESTID)).toContainText("Sending");
@@ -575,12 +511,12 @@ for (const { label, viewport, isMobile } of [
       expect(box).toBeTruthy();
       expect(composerBox).toBeTruthy();
 
-      // 12px above the composer's top edge.
+
       const gap = composerBox!.y - (box!.y + box!.height);
       expect(gap).toBeGreaterThanOrEqual(11);
       expect(gap).toBeLessThanOrEqual(13);
 
-      // Centred on the chat column the composer spans.
+
       const centre = box!.x + box!.width / 2;
       const composerCentre = composerBox!.x + composerBox!.width / 2;
       expect(Math.abs(centre - composerCentre)).toBeLessThanOrEqual(2);
@@ -602,12 +538,10 @@ for (const { label, viewport, isMobile } of [
       const indicator = page.getByTestId(INDICATOR_TESTID);
       await expect(indicator).toBeVisible();
 
-      // The spacer opens (it eases over 150ms) ...
+      // Poll through the spacer's 150ms transition.
       await expect.poll(spacerHeight).toBeGreaterThanOrEqual(20);
 
-      // ... and the reader, pinned to the bottom when the room opened, stays
-      // pinned, with the same 12px between the last message (which ends where
-      // the spacer starts) and the dots as between the dots and the composer.
+      // The spacer's top is the last message's bottom; room opening pins the scroll.
       const clearance = async () => {
         const [lastMessageBottom, dotsTop] = await Promise.all([
           spacer.evaluate((el) => el.getBoundingClientRect().top),
@@ -651,9 +585,7 @@ for (const { label, viewport, isMobile } of [
 
       const marker = `network-activity-tap-check-${label}`;
       await messageInput.fill(marker);
-      // No `force`: if `pointer-events: none` or the indicator's geometry
-      // regressed, this click would either hang on actionability or land on
-      // the indicator instead of the button.
+      // Do not force: normal actionability must catch intercepted clicks.
       await page.getByTestId("send-message-button").click();
       await expect(page.getByText(marker)).toBeVisible({ timeout: 5_000 });
     });
@@ -674,8 +606,7 @@ test.describe("Network activity indicator (mobile-only panel behaviour)", () => 
     const indicator = page.getByTestId(INDICATOR_TESTID);
     await expect(indicator).toBeVisible();
 
-    // Switch to the rooms panel: the chat section is hidden below 768px,
-    // and the dots go with it rather than floating over the room list.
+
     await page.getByTestId("hamburger-rooms-button").click();
     await expect(page.getByTestId("room-list")).toBeVisible();
     await expect(indicator).toBeHidden();

@@ -1,24 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { waitForApp, openRoomWithComposer } from "./example-room";
 
-// Coverage for the generic toast (ui/src/components/toast.rs): one at a time,
-// centred at the top of the UI, above every modal and the room header, clear
-// of the composer. A normal toast disappears after 5s; an error toast stays
-// until closed.
-//
-// PREMISES (see `example_data.rs::install_test_hooks`):
-//   - `showToast(message, withAction?)` shows a normal toast. With a truthy
-//     second argument it carries a "Do it" action whose clicks are counted in
-//     `window.__riverTestToastActions`.
-//   - `showErrorToast(message)` shows one that stays until closed.
-//   - `presentTestInvitation()` opens the invitation modal, used here only as
-//     "some modal is open".
-//
-// State/timer/stacking coverage below runs once per Playwright project (no
-// viewport dependency). Responsive placement — centring against the actual
-// viewport width, and staying clear of the composer once a room is open —
-// runs once per viewport size further down, since those are the only things
-// here that actually vary with screen size.
 
 const TOAST = "toast";
 
@@ -31,7 +13,7 @@ async function hook(page: Page, name: string, ...args: unknown[]) {
   );
 }
 
-/** Whether the topmost element at the toast's centre is part of the toast. */
+
 async function toastIsOnTop(page: Page): Promise<boolean> {
   return page.getByTestId(TOAST).evaluate((toast) => {
     const r = toast.getBoundingClientRect();
@@ -98,10 +80,7 @@ test.describe("Toast", () => {
     await expect(page.getByTestId(TOAST)).toHaveText(/Second/);
   });
 
-  // The long persistence wait lives here, once, so the join-error test in
-  // join-room-flow.spec.ts doesn't have to repeat it per viewport: an error
-  // toast not timing out is a property of the generic toast, not of the join
-  // flow that happens to trigger one.
+  // Test persistence here rather than repeating the long wait in each join test.
   test("an error toast stays until it is closed", async ({ page }) => {
     await hook(page, "showErrorToast", "Couldn't join the room: test");
     const toast = page.getByTestId(TOAST);
@@ -195,7 +174,7 @@ test.describe("Toast (320px)", () => {
     const box = (await toast.boundingBox())!;
     expect(box.x, "16px gutter on the left").toBeGreaterThanOrEqual(15);
     expect(box.x + box.width, "16px gutter on the right").toBeLessThanOrEqual(305);
-    // Every control stays on screen.
+
     const dismiss = (await page.getByTestId("toast-dismiss").boundingBox())!;
     expect(dismiss.x + dismiss.width).toBeLessThanOrEqual(320);
   });

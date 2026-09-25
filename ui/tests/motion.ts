@@ -1,10 +1,6 @@
 import { expect, Locator } from "@playwright/test";
 
-/**
- * Under reduced motion a dot must still read as activity without travelling.
- * Sampled in real time over one animation cycle (plus a little): its opacity
- * takes more than one value, its position exactly one.
- */
+
 export async function expectShimmerInPlace(dot: Locator, cycleMs: number) {
   const opacities = new Set<string>();
   const positions = new Set<string>();
