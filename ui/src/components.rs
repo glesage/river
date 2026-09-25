@@ -2,6 +2,7 @@ pub mod app;
 pub mod conversation;
 pub mod direct_messages;
 pub mod invite_click_interceptor;
+pub mod loading_dots;
 pub mod members;
 pub mod mention_click_interceptor;
 pub mod network_activity_indicator;
