@@ -232,10 +232,11 @@
     }
 }
 
-/* Network activity indicator (network_activity_indicator.rs): ten accent-blue
- * dots riding one travelling sine wave. Pure CSS: every dot runs the same
- * keyframes, phase-shifted by its --i. WHEN it is mounted (500ms debounce,
- * 1s minimum) is decided in Rust by `DisplayGate`, not here.
+/* Wave dots: ten accent-blue dots riding one travelling sine wave. Pure CSS:
+ * every dot runs the same keyframes, phase-shifted by its --i. WHEN a row is
+ * mounted is decided in Rust: by `DisplayGate` for the user-action indicator
+ * (network_activity_indicator.rs: 500ms debounce, 1s minimum), and for as
+ * long as a surface is loading for `WaveDots` (loading_dots.rs).
  *
  * It lives inside the chat section, never `position: fixed` to the window:
  * `--docked` pins it to the bottom of the message history, just above the
@@ -395,6 +396,20 @@
         animation: river-flow-shimmer 2s ease-in-out infinite;
         animation-delay: calc(var(--i, 0) * 0.2s);
     }
+}
+
+/* The connection pill's small dots (`.pill-activity-dot`) anywhere else
+ * (loading_dots.rs `SmallDots`): the same dots, gap and wave, but always
+ * open, since they are shown for exactly as long as they are mounted. They
+ * take the `color` they inherit; every current use sets `text-accent`. The
+ * pill's reduced-motion shimmer applies to them too, since it targets
+ * `.pill-activity-dot`. */
+.small-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 8px;
+    flex-shrink: 0;
 }
 
 /* Toast (toast.rs): one at a time, centred at the top of the UI. Fixed to the

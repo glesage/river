@@ -5,7 +5,10 @@
 //!   pill.
 //!
 //! `network_activity_indicator` decides when its gated dots show and draws
-//! them with the markup helpers here.
+//! them with the markup helpers here. [`WaveDots`] and [`SmallDots`] are
+//! always on: for a surface that is loading for exactly as long as it is
+//! mounted (the rooms rail and the no-room screen while rooms load, a room
+//! waiting for its first sync, an invite DM on its way).
 
 use dioxus::prelude::*;
 
@@ -33,11 +36,43 @@ pub(crate) fn wave_dot_spans(seed: u64, dot_testid: &'static str) -> Element {
     }
 }
 
-/// The five small dots, for a container with class `pill-activity`.
+/// The five small dots, for a container with class `pill-activity` or
+/// `small-dots`.
 pub(crate) fn small_dot_spans() -> Element {
     rsx! {
         for i in 0..SMALL_DOT_COUNT {
             span { key: "{i}", class: "pill-activity-dot", style: "--i: {i};" }
+        }
+    }
+}
+
+/// Big wave dots, in the flow, for a surface that is loading for as long as
+/// it is mounted (the rooms rail and the no-room screen while rooms load).
+#[component]
+pub fn WaveDots(testid: &'static str) -> Element {
+    // One wave per mount, kept across re-renders so the animation doesn't
+    // restart.
+    let seed = use_hook(|| crate::components::app::sync_info::now_ms().to_bits());
+    rsx! {
+        div {
+            class: "river-flow",
+            "aria-hidden": "true",
+            "data-testid": testid,
+            {wave_dot_spans(seed, "wave-dot")}
+        }
+    }
+}
+
+/// The connection pill's small dots, in accent blue, for an inline "this is
+/// in progress" (a room row, a banner, a footer).
+#[component]
+pub fn SmallDots(testid: &'static str) -> Element {
+    rsx! {
+        span {
+            class: "small-dots text-accent",
+            "aria-hidden": "true",
+            "data-testid": testid,
+            {small_dot_spans()}
         }
     }
 }
@@ -147,6 +182,27 @@ impl SplitMix64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `SmallDots` are the pill's dots outside the pill: same dot class, same
+    /// gap and height as `.pill-activity`, and always open.
+    #[test]
+    fn small_dots_match_the_pill() {
+        let css = include_str!("../../assets/main.css");
+        let rule = |sel: &str| {
+            let r = &css[css.find(sel).unwrap_or_else(|| panic!("{sel} rule"))..];
+            r[..r.find('}').unwrap()].to_string()
+        };
+        let small = rule(".small-dots {");
+        let pill = rule(".pill-activity {");
+        for decl in ["gap: 2px;", "height: 8px;", "align-items: center;"] {
+            assert!(pill.contains(decl), "premise: .pill-activity has {decl}");
+            assert!(
+                small.contains(decl),
+                ".small-dots must match the pill: {decl}"
+            );
+        }
+        assert!(!small.contains("width: 0"), ".small-dots is always open");
+    }
 
     /// Seeds as the component derives them, plus edge values.
     fn seeds() -> impl Iterator<Item = u64> {
