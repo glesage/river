@@ -52,28 +52,21 @@ pub fn ConnectionStatusIndicator() -> Element {
         .map(|r| r.clone())
         .unwrap_or(SynchronizerStatus::Connecting);
 
-    let (pill_classes, dot_classes, label) = match &status {
+    let (pill_classes, dot_classes) = match &status {
         SynchronizerStatus::Connected => (
             "bg-success-bg text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800",
             "bg-green-500",
-            "Connected".to_string(),
         ),
         SynchronizerStatus::Connecting => (
             "bg-warning-bg text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800",
             "bg-yellow-500",
-            "Connecting...".to_string(),
         ),
-        SynchronizerStatus::Disconnected => (
+        SynchronizerStatus::Disconnected | SynchronizerStatus::Error(_) => (
             "bg-error-bg text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800",
             "bg-red-500",
-            "Disconnected".to_string(),
-        ),
-        SynchronizerStatus::Error(msg) => (
-            "bg-error-bg text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800",
-            "bg-red-500",
-            format!("Error: {}", msg),
         ),
     };
+    let label = connection_status_label(&status);
 
     // Background work (connecting, loading or re-syncing rooms, refreshes,
     // delegate saves) shows as small dots after the label, with the reason as
@@ -90,10 +83,21 @@ pub fn ConnectionStatusIndicator() -> Element {
                 "data-testid": "connection-status-indicator",
                 class: "w-full px-3 py-1.5 rounded-full flex items-center justify-center text-xs font-medium {pill_classes}",
                 div { class: "w-2 h-2 rounded-full mr-2 {dot_classes}" }
-                span { "{label}" }
+                span { "data-testid": "connection-status-label", "{label}" }
                 crate::components::network_activity_indicator::PillActivityDots {}
             }
         }
+    }
+}
+
+/// The pill's text. An error shows only its message: the red pill already
+/// says it is an error.
+fn connection_status_label(status: &SynchronizerStatus) -> String {
+    match status {
+        SynchronizerStatus::Connected => "Connected".to_string(),
+        SynchronizerStatus::Connecting => "Connecting...".to_string(),
+        SynchronizerStatus::Disconnected => "Disconnected".to_string(),
+        SynchronizerStatus::Error(msg) => msg.clone(),
     }
 }
 
@@ -2721,6 +2725,29 @@ mod tests {
             member_vk: *invitee_vk,
         };
         AuthorizedMember::new(member, owner_sk)
+    }
+
+    /// The red pill already says it is an error, so the label is the message
+    /// alone — the same as the room-sync banner and the rail's ⚠ tooltip.
+    #[test]
+    fn an_error_pill_shows_only_its_message() {
+        let msg = "WebSocket connection failed or timed out";
+        assert_eq!(
+            connection_status_label(&SynchronizerStatus::Error(msg.into())),
+            msg
+        );
+        assert_eq!(
+            connection_status_label(&SynchronizerStatus::Connected),
+            "Connected"
+        );
+        assert_eq!(
+            connection_status_label(&SynchronizerStatus::Connecting),
+            "Connecting..."
+        );
+        assert_eq!(
+            connection_status_label(&SynchronizerStatus::Disconnected),
+            "Disconnected"
+        );
     }
 
     /// Like [`authorized_member`] but for a NON-owner inviter, so tests can
