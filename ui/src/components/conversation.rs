@@ -4600,8 +4600,10 @@ pub fn Conversation() -> Element {
                     },
                     Some(room_data) if room_data.is_awaiting_initial_sync() => {
                         rsx! {
-                            div { class: "px-4 py-3 mx-4 mb-4 bg-surface rounded-lg text-sm text-text-muted flex items-center gap-3",
-                                div { class: "animate-spin w-4 h-4 border-2 border-accent border-t-transparent rounded-full" }
+                            div {
+                                class: "px-4 py-3 mx-4 mb-4 bg-surface rounded-lg text-sm text-text-muted flex items-center gap-3",
+                                "data-testid": "room-sync-banner",
+                                crate::components::loading_dots::SmallDots { testid: "room-sync-banner-dots" }
                                 span { "Syncing room state from the network... You'll be able to send messages once sync completes." }
                             }
                         }

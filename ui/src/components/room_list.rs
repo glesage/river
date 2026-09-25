@@ -635,12 +635,12 @@ pub fn RoomList() -> Element {
                                         }
                                     }
                                     if awaiting_sync {
-                                        div { class: "animate-spin w-3 h-3 border-2 border-text-muted border-t-transparent rounded-full flex-shrink-0" }
+                                        crate::components::loading_dots::SmallDots { testid: "room-sync-dots" }
                                     } else if let Some(err_msg) = sync_error_msg {
                                         // Terminal sync failure for a placeholder room: the
                                         // bounded contract-absent case (freenet/river#290) or a
                                         // failed GET/PUT send. Show a warning marker (tooltip = the
-                                        // stored error message) instead of a perpetual spinner.
+                                        // stored error message) instead of perpetual loading dots.
                                         span {
                                             class: "flex-shrink-0 text-red-600 dark:text-red-400",
                                             title: "{err_msg}",
