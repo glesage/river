@@ -72,9 +72,12 @@ pub fn InviteMemberModal(is_active: Signal<bool>) -> Element {
     }
 
     rsx! {
-        // Backdrop
+        // Backdrop. z-50, not z-40: the message composer is `relative z-50`,
+        // so a z-40 backdrop dims everything except the composer bar. At an
+        // equal z-index this later-in-DOM backdrop paints over it.
         div {
-            class: "fixed inset-0 bg-black/50 z-40",
+            "data-testid": "invite-member-backdrop",
+            class: "fixed inset-0 bg-black/50 z-50",
             onclick: move |_| is_active.set(false)
         }
 
