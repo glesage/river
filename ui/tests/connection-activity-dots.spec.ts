@@ -1,6 +1,7 @@
 import { test, expect, Locator, Page } from "@playwright/test";
+import { expectShimmerInPlace } from "./motion";
 
-// Coverage for the SECONDARY loading indicator (docs/plans/loading-indicators.md):
+// Coverage for the SECONDARY loading indicator:
 // five small dots riding a wave inside the connection pill, shown the moment
 // any background work starts (connecting, reconnecting, loading or re-syncing
 // rooms, a request nobody is waiting on) and held at least 1s. They fade in
@@ -283,16 +284,17 @@ for (const { label, viewport } of [
       }
     });
 
-    test("reduced motion keeps the dots still", async ({ page }) => {
+    test("reduced motion keeps the dots still: opacity moves, position does not", async ({
+      page,
+    }) => {
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.goto("/");
       await waitForApp(page);
       await hook(page, "setSyncStatus", "connecting");
       const dot = page.locator(`${VISIBLE_DOTS} .pill-activity-dot`).first();
       await expect(dot).toBeVisible();
-      expect(await dot.evaluate((el) => getComputedStyle(el).animationName)).toBe(
-        "river-flow-shimmer"
-      );
+      // main.css: `river-flow-shimmer`, a 2s opacity-only cycle.
+      await expectShimmerInPlace(dot, 2_000);
     });
 
     // Status stays `connected` in the tests below (a background request

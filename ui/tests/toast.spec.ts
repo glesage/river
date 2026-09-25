@@ -1,5 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
-import { selectListedRoom, waitForApp } from "./example-room";
+import { waitForApp, openRoomWithComposer } from "./example-room";
 
 // Coverage for the generic toast (ui/src/components/toast.rs): one at a time,
 // centred at the top of the UI, above every modal and the room header, clear
@@ -13,6 +13,12 @@ import { selectListedRoom, waitForApp } from "./example-room";
 //   - `showErrorToast(message)` shows one that stays until closed.
 //   - `presentTestInvitation()` opens the invitation modal, used here only as
 //     "some modal is open".
+//
+// State/timer/stacking coverage below runs once per Playwright project (no
+// viewport dependency). Responsive placement — centring against the actual
+// viewport width, and staying clear of the composer once a room is open —
+// runs once per viewport size further down, since those are the only things
+// here that actually vary with screen size.
 
 const TOAST = "toast";
 
@@ -25,16 +31,6 @@ async function hook(page: Page, name: string, ...args: unknown[]) {
   );
 }
 
-async function openRoomWithComposer(page: Page, isMobile: boolean) {
-  if (isMobile) {
-    await page.getByTestId("hamburger-rooms-button").click();
-  }
-  await selectListedRoom(page, "Your Private Room");
-  await expect(page.getByTestId("message-composer")).toBeVisible({
-    timeout: 5_000,
-  });
-}
-
 /** Whether the topmost element at the toast's centre is part of the toast. */
 async function toastIsOnTop(page: Page): Promise<boolean> {
   return page.getByTestId(TOAST).evaluate((toast) => {
@@ -44,11 +40,96 @@ async function toastIsOnTop(page: Page): Promise<boolean> {
   });
 }
 
+test.describe("Toast", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await waitForApp(page);
+  });
+
+  test("sits above an open modal", async ({ page }) => {
+    await hook(page, "presentTestInvitation");
+    await expect(page.getByTestId("receive-invitation-modal")).toBeVisible();
+
+    await hook(page, "showToast", "Joined Your Private Room");
+    await expect(page.getByTestId(TOAST)).toBeVisible();
+    await page.waitForTimeout(300);
+    expect(await toastIsOnTop(page), "the modal must not paint over it").toBe(true);
+  });
+
+  test("disappears on its own after about 5 seconds", async ({ page }) => {
+    await hook(page, "showToast", "Room joined");
+    const toast = page.getByTestId(TOAST);
+    await expect(toast).toBeVisible();
+    const shownAt = Date.now();
+
+    await page.waitForTimeout(4_000);
+    await expect(toast, "still up well inside its 5s").toBeVisible();
+
+    await expect(toast).toHaveCount(0, { timeout: 4_000 });
+    const elapsed = Date.now() - shownAt;
+    expect(elapsed).toBeGreaterThanOrEqual(4_500);
+    expect(elapsed).toBeLessThan(7_000);
+    await expect(page.getByTestId("toast-status")).toHaveText("");
+  });
+
+  test("the close button dismisses it", async ({ page }) => {
+    await hook(page, "showToast", "Room joined");
+    await expect(page.getByTestId(TOAST)).toBeVisible();
+    await page.getByTestId("toast-dismiss").click();
+    await expect(page.getByTestId(TOAST)).toHaveCount(0);
+  });
+
+  test("its action runs, then the toast closes", async ({ page }) => {
+    await hook(page, "showToast", "Archived conversation with Alice", true);
+    const action = page.getByTestId("toast-action");
+    await expect(action).toHaveText("Do it");
+    await action.click();
+
+    await expect(page.getByTestId(TOAST)).toHaveCount(0);
+    expect(await page.evaluate(() => (window as any).__riverTestToastActions)).toBe(1);
+  });
+
+  test("a newer toast replaces the older one", async ({ page }) => {
+    await hook(page, "showToast", "First");
+    await expect(page.getByTestId(TOAST)).toHaveText(/First/);
+    await hook(page, "showToast", "Second");
+
+    await expect(page.getByTestId(TOAST)).toHaveCount(1);
+    await expect(page.getByTestId(TOAST)).toHaveText(/Second/);
+  });
+
+  // The long persistence wait lives here, once, so the join-error test in
+  // join-room-flow.spec.ts doesn't have to repeat it per viewport: an error
+  // toast not timing out is a property of the generic toast, not of the join
+  // flow that happens to trigger one.
+  test("an error toast stays until it is closed", async ({ page }) => {
+    await hook(page, "showErrorToast", "Couldn't join the room: test");
+    const toast = page.getByTestId(TOAST);
+    await expect(toast).toHaveAttribute("data-kind", "error");
+
+    await page.waitForTimeout(6_000);
+    await expect(toast, "an error must not time out").toBeVisible();
+
+    await page.getByTestId("toast-dismiss").click();
+    await expect(toast).toHaveCount(0);
+  });
+
+  test("reduced motion only fades it in", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await hook(page, "showToast", "Room joined");
+    const toast = page.getByTestId(TOAST);
+    await expect(toast).toBeVisible();
+    expect(await toast.evaluate((el) => getComputedStyle(el).animationName)).toBe(
+      "river-toast-fade-in"
+    );
+  });
+});
+
 for (const { label, viewport, isMobile } of [
   { label: "mobile", viewport: { width: 390, height: 844 }, isMobile: true },
   { label: "desktop", viewport: { width: 1280, height: 800 }, isMobile: false },
 ]) {
-  test.describe(`Toast (${label})`, () => {
+  test.describe(`Toast placement (${label})`, () => {
     test.use({ viewport });
 
     test.beforeEach(async ({ page }) => {
@@ -92,80 +173,6 @@ for (const { label, viewport, isMobile } of [
         toast.y + toast.height <= composer.y,
         "the toast must stay clear of the composer"
       ).toBe(true);
-    });
-
-    test("sits above an open modal", async ({ page }) => {
-      await hook(page, "presentTestInvitation");
-      await expect(page.getByTestId("receive-invitation-modal")).toBeVisible();
-
-      await hook(page, "showToast", "Joined Your Private Room");
-      await expect(page.getByTestId(TOAST)).toBeVisible();
-      await page.waitForTimeout(300);
-      expect(await toastIsOnTop(page), "the modal must not paint over it").toBe(true);
-    });
-
-    test("disappears on its own after about 5 seconds", async ({ page }) => {
-      await hook(page, "showToast", "Room joined");
-      const toast = page.getByTestId(TOAST);
-      await expect(toast).toBeVisible();
-      const shownAt = Date.now();
-
-      await page.waitForTimeout(4_000);
-      await expect(toast, "still up well inside its 5s").toBeVisible();
-
-      await expect(toast).toHaveCount(0, { timeout: 4_000 });
-      const elapsed = Date.now() - shownAt;
-      expect(elapsed).toBeGreaterThanOrEqual(4_500);
-      expect(elapsed).toBeLessThan(7_000);
-      await expect(page.getByTestId("toast-status")).toHaveText("");
-    });
-
-    test("the close button dismisses it", async ({ page }) => {
-      await hook(page, "showToast", "Room joined");
-      await expect(page.getByTestId(TOAST)).toBeVisible();
-      await page.getByTestId("toast-dismiss").click();
-      await expect(page.getByTestId(TOAST)).toHaveCount(0);
-    });
-
-    test("its action runs, then the toast closes", async ({ page }) => {
-      await hook(page, "showToast", "Archived conversation with Alice", true);
-      const action = page.getByTestId("toast-action");
-      await expect(action).toHaveText("Do it");
-      await action.click();
-
-      await expect(page.getByTestId(TOAST)).toHaveCount(0);
-      expect(await page.evaluate(() => (window as any).__riverTestToastActions)).toBe(1);
-    });
-
-    test("a newer toast replaces the older one", async ({ page }) => {
-      await hook(page, "showToast", "First");
-      await expect(page.getByTestId(TOAST)).toHaveText(/First/);
-      await hook(page, "showToast", "Second");
-
-      await expect(page.getByTestId(TOAST)).toHaveCount(1);
-      await expect(page.getByTestId(TOAST)).toHaveText(/Second/);
-    });
-
-    test("an error toast stays until it is closed", async ({ page }) => {
-      await hook(page, "showErrorToast", "Couldn't join the room: test");
-      const toast = page.getByTestId(TOAST);
-      await expect(toast).toHaveAttribute("data-kind", "error");
-
-      await page.waitForTimeout(6_000);
-      await expect(toast, "an error must not time out").toBeVisible();
-
-      await page.getByTestId("toast-dismiss").click();
-      await expect(toast).toHaveCount(0);
-    });
-
-    test("reduced motion only fades it in", async ({ page }) => {
-      await page.emulateMedia({ reducedMotion: "reduce" });
-      await hook(page, "showToast", "Room joined");
-      const toast = page.getByTestId(TOAST);
-      await expect(toast).toBeVisible();
-      expect(await toast.evaluate((el) => getComputedStyle(el).animationName)).toBe(
-        "river-toast-fade-in"
-      );
     });
   });
 }

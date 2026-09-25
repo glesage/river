@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { waitForApp } from "./example-room";
 
 // The room header description renders user-supplied markdown that may include
 // `<a>` links. Those links must live outside the clickable "room details"
@@ -6,11 +7,6 @@ import { test, expect, Page } from "@playwright/test";
 // the modal-opening onclick handler.
 
 const ROOM_WITH_LINKS = "Public Discussion Room";
-
-async function waitForApp(page: Page) {
-  await page.waitForSelector(".app-root", { timeout: 30_000 });
-  await expect(page.locator("aside, .app-root button")).not.toHaveCount(0);
-}
 
 async function selectRoom(page: Page, roomName: string) {
   const vp = page.viewportSize();

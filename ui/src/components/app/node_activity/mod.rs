@@ -12,8 +12,6 @@
 //! arrives in. User actions ride on top: a handler that changes a room calls
 //! [`await_room_update`], and a handler that awaits a node call holds a
 //! [`busy`] guard.
-//!
-//! See docs/plans/loading-indicators.md.
 
 mod actions;
 mod ledger;
@@ -351,10 +349,8 @@ mod tests {
                 "ban_button.rs",
                 include_str!("../../members/member_info_modal/ban_button.rs"),
             ),
-            (
-                "room_name_field.rs",
-                include_str!("../../room_list/room_name_field.rs"),
-            ),
+            // Holds the shared configuration save, which room_name_field.rs
+            // also uses; see `configuration_edits_share_one_signed_save`.
             (
                 "edit_room_modal.rs",
                 include_str!("../../room_list/edit_room_modal.rs"),
@@ -396,9 +392,83 @@ mod tests {
             }
         }
         assert_eq!(
-            checked, 16,
-            "expected exactly the 16 known user room changes; update this \
+            checked, 13,
+            "expected exactly the 13 known user room changes; update this \
              deliberately if you added or removed one"
+        );
+    }
+
+    /// Every configuration edit (name, description, numeric limits, member
+    /// cap) goes through one signed save. That helper holds the guard until
+    /// the deferred apply, and only a successful apply awaits its UPDATE and
+    /// then hands the change to the sync. The two pins above count the helper
+    /// once; this one proves each caller still reaches it.
+    #[test]
+    fn configuration_edits_share_one_signed_save() {
+        let edit_room = strip_line_comments(production_only(include_str!(
+            "../../room_list/edit_room_modal.rs"
+        )));
+        let room_name = strip_line_comments(production_only(include_str!(
+            "../../room_list/room_name_field.rs"
+        )));
+        let helper = "sign_and_apply_configuration(";
+        let definition = format!("fn {helper}");
+
+        let save = fn_body(&edit_room, &definition);
+        let busy = save
+            .find("node_activity::busy(")
+            .expect("the signed save must hold a busy guard");
+        let sign = save
+            .find("sign_config_with_fallback(")
+            .expect("the signed save no longer signs; move the pin");
+        assert!(busy < sign, "the guard must cover the signature");
+        let apply = fn_body(save, "crate::util::defer(move ||");
+        assert!(
+            apply.contains("let _busy = busy;"),
+            "the guard must move into the deferred apply, or it ends before \
+             the UPDATE wait takes over"
+        );
+        let gate = apply
+            .find("if applied")
+            .expect("the deferred apply must branch on whether the delta applied");
+        assert!(
+            !apply[..gate].contains("mark_needs_sync("),
+            "a failed apply must not reach the sync"
+        );
+        let applied = fn_body(&apply[gate..], "if applied");
+        let awaited = applied
+            .find("node_activity::await_room_update(")
+            .expect("a successful apply must await its UPDATE");
+        let synced = applied
+            .find("mark_needs_sync(")
+            .expect("a successful apply must hand the change to the sync");
+        assert!(
+            awaited < synced,
+            "register the wait before the UPDATE is sent"
+        );
+
+        for (name, src, component) in [
+            ("room_name_field.rs", &room_name, "fn RoomNameField("),
+            ("edit_room_modal.rs", &edit_room, "fn RoomDescriptionField("),
+            ("edit_room_modal.rs", &edit_room, "fn NumericConfigField("),
+            ("edit_room_modal.rs", &edit_room, "fn MaxMembersField("),
+        ] {
+            let body = fn_body(src, component);
+            assert_eq!(
+                body.matches(helper).count(),
+                1,
+                "{name} {component}: must save through {helper}"
+            );
+            assert!(
+                !body.contains("sign_config_with_fallback(") && !body.contains("mark_needs_sync("),
+                "{name} {component}: signs or syncs on its own again"
+            );
+        }
+        assert_eq!(
+            edit_room.matches(helper).count() - edit_room.matches(&definition).count(),
+            3,
+            "edit_room_modal.rs: expected exactly the description, numeric and \
+             member-cap callers"
         );
     }
 
@@ -454,21 +524,20 @@ mod tests {
                 include_str!("../../room_list/notification_modal.rs"),
                 1,
             ),
-            ("room_list.rs", include_str!("../../room_list.rs"), 4),
+            // The four reorder sites share `spawn_room_order_save`; pinned
+            // below the loop.
+            ("room_list.rs", include_str!("../../room_list.rs"), 1),
             ("members.rs", include_str!("../../members.rs"), 1),
+            // Leaving the room, and the shared configuration save (which
+            // also serves room_name_field.rs).
             (
                 "edit_room_modal.rs",
                 include_str!("../../room_list/edit_room_modal.rs"),
-                4,
+                2,
             ),
             (
                 "ban_button.rs",
                 include_str!("../../members/member_info_modal/ban_button.rs"),
-                1,
-            ),
-            (
-                "room_name_field.rs",
-                include_str!("../../room_list/room_name_field.rs"),
                 1,
             ),
         ];
@@ -483,14 +552,44 @@ mod tests {
             );
         }
 
+        // room_list.rs: the one guard is the reorder-save helper's, and every
+        // reorder (drop-before, move up, move down, drop-at-end) calls it.
+        let room_list = strip_line_comments(production_only(include_str!("../../room_list.rs")));
+        assert!(
+            fn_body(&room_list, "fn spawn_room_order_save(").contains("node_activity::track("),
+            "spawn_room_order_save must hold the Saving guard"
+        );
+        assert_eq!(
+            room_list.matches("spawn_room_order_save();").count(),
+            4,
+            "room_list.rs: expected the 4 reorder sites to save through \
+             spawn_room_order_save"
+        );
+
         // chat_delegate.rs has a test module mid-file, so scope to the two
         // helpers instead: archiving, and the user flavour of un-archiving
         // (the inbound-sync flavour must stay background).
         let src = strip_line_comments(include_str!("../chat_delegate.rs"));
         assert!(fn_body(&src, "pub fn hide_dm_thread(").contains("node_activity::track("));
         let unhide = fn_body(&src, "fn unhide_dm_thread_saving(");
-        assert!(unhide.contains("if by_user"));
-        assert!(unhide.contains("node_activity::track("));
+        // Only the user flavour holds a guard, named so it lives across the
+        // one shared save rather than dropping at once.
+        let guard = unhide
+            .find("let _busy = by_user.then(")
+            .expect("the guard must be a named binding conditional on by_user");
+        assert!(unhide.contains("node_activity::busy("));
+        let save = unhide
+            .find("save_outbound_dms_to_delegate().await")
+            .expect("unhide_dm_thread_saving must await the save");
+        assert!(
+            guard < save,
+            "the guard must exist before the save is awaited"
+        );
+        assert_eq!(
+            unhide.matches(".await").count(),
+            1,
+            "the save is awaited once, not once per flavour"
+        );
         assert!(fn_body(&src, "pub fn unhide_dm_thread(")
             .contains("unhide_dm_thread_saving(room_owner_vk, peer, true)"));
         assert!(fn_body(&src, "fn unhide_dm_thread_in_background(")

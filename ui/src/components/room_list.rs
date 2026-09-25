@@ -18,7 +18,6 @@ use crate::components::members::{ConnectionStatusIndicator, ImportIdentityModal}
 use crate::components::room_list::dm_rail_section::DmRailSection;
 use crate::components::room_list::join_with_code_modal::JoinWithCodeModal;
 use crate::room_data::CurrentRoom;
-use crate::util::ecies::unseal_bytes_with_secrets;
 use dioxus::logger::tracing::error;
 use dioxus::prelude::*;
 use dioxus_free_icons::{
@@ -174,6 +173,20 @@ fn format_build_time_local() -> String {
     }
 }
 
+/// Save the room order the user just changed. Call after the mutation.
+fn spawn_room_order_save() {
+    spawn(async move {
+        let saved = crate::components::app::node_activity::track(
+            crate::components::app::node_activity::ActionKind::Saving,
+            save_rooms_to_delegate(),
+        )
+        .await;
+        if let Err(e) = saved {
+            error!("Failed to save room order: {}", e);
+        }
+    });
+}
+
 #[component]
 pub fn RoomList() -> Element {
     let mut import_modal_active = use_signal(|| false);
@@ -253,17 +266,7 @@ pub fn RoomList() -> Element {
                 };
                 let awaiting_sync =
                     room_data.is_awaiting_initial_sync() && sync_error_msg.is_none();
-                // Decrypt room name if room is private and we have the secret
-                let sealed_name = &room_data
-                    .room_state
-                    .configuration
-                    .configuration
-                    .display
-                    .name;
-                let room_name = match unseal_bytes_with_secrets(sealed_name, &room_data.secrets) {
-                    Ok(bytes) => String::from_utf8_lossy(&bytes).to_string(),
-                    Err(_) => sealed_name.to_string_lossy(),
-                };
+                let room_name = room_data.display_name();
                 let is_current = current_room_key == Some(room_key);
                 let is_private = room_data
                     .room_state
@@ -558,16 +561,7 @@ pub fn RoomList() -> Element {
                                     if let Some(src) = src {
                                         if src != room_key {
                                             ROOMS.with_mut(|rooms| rooms.move_room(src, room_key));
-                                            spawn(async move {
-                                                let saved = crate::components::app::node_activity::track(
-                                                    crate::components::app::node_activity::ActionKind::Saving,
-                                                    save_rooms_to_delegate(),
-                                                )
-                                                .await;
-                                                if let Err(e) = saved {
-                                                    error!("Failed to save room order: {}", e);
-                                                }
-                                            });
+                                            spawn_room_order_save();
                                         }
                                     }
                                 });
@@ -681,16 +675,7 @@ pub fn RoomList() -> Element {
                                             // the button is also `disabled` there.
                                             crate::util::defer(move || {
                                                 ROOMS.with_mut(|rooms| rooms.move_room_up(room_key));
-                                                spawn(async move {
-                                                    let saved = crate::components::app::node_activity::track(
-                                                        crate::components::app::node_activity::ActionKind::Saving,
-                                                        save_rooms_to_delegate(),
-                                                    )
-                                                    .await;
-                                                    if let Err(e) = saved {
-                                                        error!("Failed to save room order: {}", e);
-                                                    }
-                                                });
+                                                spawn_room_order_save();
                                             });
                                         },
                                         Icon { width: 14, height: 14, icon: FaChevronUp }
@@ -713,16 +698,7 @@ pub fn RoomList() -> Element {
                                             evt.stop_propagation();
                                             crate::util::defer(move || {
                                                 ROOMS.with_mut(|rooms| rooms.move_room_down(room_key));
-                                                spawn(async move {
-                                                    let saved = crate::components::app::node_activity::track(
-                                                        crate::components::app::node_activity::ActionKind::Saving,
-                                                        save_rooms_to_delegate(),
-                                                    )
-                                                    .await;
-                                                    if let Err(e) = saved {
-                                                        error!("Failed to save room order: {}", e);
-                                                    }
-                                                });
+                                                spawn_room_order_save();
                                             });
                                         },
                                         Icon { width: 14, height: 14, icon: FaChevronDown }
@@ -768,16 +744,7 @@ pub fn RoomList() -> Element {
                                 dragged_room.set(None);
                                 if let Some(src) = src {
                                     ROOMS.with_mut(|rooms| rooms.move_room_to_end(src));
-                                    spawn(async move {
-                                        let saved = crate::components::app::node_activity::track(
-                                            crate::components::app::node_activity::ActionKind::Saving,
-                                            save_rooms_to_delegate(),
-                                        )
-                                        .await;
-                                        if let Err(e) = saved {
-                                            error!("Failed to save room order: {}", e);
-                                        }
-                                    });
+                                    spawn_room_order_save();
                                 }
                             });
                         },

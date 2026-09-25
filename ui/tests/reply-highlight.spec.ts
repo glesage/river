@@ -205,10 +205,15 @@ const nearBytes = (a: number[], b: number[]) =>
   a.every((v, i) => Math.abs(v - b[i]) <= 4);
 
 /**
- * From 1s into the highlight: full strength until 2s, then exactly `base`
- * (the row's own background) with nothing in between, and never a
- * `background-color` transition, including after `animationend` takes the
- * class off. Starting at 1s leaves out the hover test's pointer move.
+ * From 1s into the highlight: full strength (fully opaque, matching
+ * `surface`) until 2s, then exactly `base` (the row's own background) with
+ * nothing in between, and never a `background-color` transition, including
+ * after `animationend` takes the class off. Starting at 1s leaves out the
+ * hover test's pointer move.
+ *
+ * The highlight's whole lifetime check, run on the hovered and unhovered
+ * paths: the recorder keeps sampling until the class has been off for a
+ * while (or its cap), so the last sample also proves the class comes off.
  */
 function expectInstantOff(samples: Sample[], surface: number[], base: number[]) {
   const start = samples.findIndex((s) => s.animTime !== null);
@@ -227,6 +232,7 @@ function expectInstantOff(samples: Sample[], surface: number[], base: number[]) 
     expect(s.fading, `${where}: no background-color transition`).toBe(false);
     if (t !== null && t < 1990) {
       expect(nearBytes(s.bg, surface), `${where}: full strength, got ${s.bg}`).toBe(true);
+      expect(s.bg[3], `${where}: fully opaque`).toBe(255);
       lastHeld = Math.max(lastHeld, t);
     } else if (t === null || t >= 2010) {
       expect(nearBytes(s.bg, base), `${where}: the row's own background, got ${s.bg}`).toBe(true);
@@ -266,52 +272,6 @@ function contains(outer: Rect, inner: Rect, slack = 0.5) {
 
 test.describe("Reply-jump highlight", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
-
-  test("is still on at 1.5s and gone within 4s", async ({ page }) => {
-    await openRoom(page);
-    const highlight = page.locator(".reply-highlight");
-    await page.getByTestId("reply-strip").first().click();
-    const t0 = Date.now();
-    await expect(highlight).toHaveCount(1);
-
-    await page.waitForTimeout(Math.max(0, 1500 - (Date.now() - t0)));
-    expect(await highlight.count()).toBe(1);
-
-    // The class comes off on `animationend` (2.1s: the 2s hold plus a 0.1s
-    // tail that already shows the row's own background).
-    await expect(highlight).toHaveCount(0, {
-      timeout: Math.max(0, 4000 - (Date.now() - t0)),
-    });
-  });
-
-  test("holds in the bubble grey at full opacity", async ({ page }) => {
-    await openRoom(page);
-    await page.getByTestId("reply-strip").first().click();
-    await expect(page.locator(".reply-highlight")).toHaveCount(1);
-    await page.waitForTimeout(1000); // mid-hold (the hold lasts 2s)
-    // Compared as sRGB bytes: an animated colour and a probe can serialise the
-    // same colour differently (`color(srgb …)`, `oklab(…)`, `rgba(…)`).
-    const [band, want] = await page.evaluate(() => {
-      const bytes = (c: string) => {
-        const cv = document.createElement("canvas");
-        cv.width = cv.height = 1;
-        const ctx = cv.getContext("2d")!;
-        ctx.clearRect(0, 0, 1, 1);
-        ctx.fillStyle = c;
-        ctx.fillRect(0, 0, 1, 1);
-        return Array.from(ctx.getImageData(0, 0, 1, 1).data);
-      };
-      const p = document.createElement("div");
-      p.style.backgroundColor = "var(--color-surface)";
-      document.body.appendChild(p);
-      const want = getComputedStyle(p).backgroundColor;
-      p.remove();
-      const host = document.querySelector(".reply-highlight")!;
-      return [bytes(getComputedStyle(host).backgroundColor), bytes(want)];
-    });
-    expect(band[3], "fully opaque").toBe(255);
-    for (let i = 0; i < 4; i++) expect(Math.abs(band[i] - want[i])).toBeLessThanOrEqual(3);
-  });
 
   // Keyboard activation leaves the pointer where it is, parked off the
   // conversation, so the row's own background is its unhovered one.

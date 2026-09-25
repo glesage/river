@@ -18,7 +18,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// How long a normal toast stays on screen.
-pub(crate) const TOAST_DURATION_MS: u64 = 5_000;
+const TOAST_DURATION_MS: u64 = 5_000;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum ToastKind {
@@ -67,20 +67,15 @@ fn next_toast_id() -> u64 {
 
 /// Show `message` for [`TOAST_DURATION_MS`], with an optional action.
 pub fn show_toast(message: impl Into<String>, action: Option<ToastAction>) {
-    show(
-        ToastKind::Info,
-        message.into(),
-        action,
-        Some(TOAST_DURATION_MS),
-    );
+    show(ToastKind::Info, message.into(), action);
 }
 
 /// Show an error that stays until the user closes it or runs its action.
 pub fn show_error_toast(message: impl Into<String>, action: Option<ToastAction>) {
-    show(ToastKind::Error, message.into(), action, None);
+    show(ToastKind::Error, message.into(), action);
 }
 
-fn show(kind: ToastKind, message: String, action: Option<ToastAction>, lifetime_ms: Option<u64>) {
+fn show(kind: ToastKind, message: String, action: Option<ToastAction>) {
     let id = next_toast_id();
     let toast = Toast {
         id,
@@ -91,9 +86,9 @@ fn show(kind: ToastKind, message: String, action: Option<ToastAction>, lifetime_
     crate::util::defer(move || {
         *TOAST.write() = Some(toast);
     });
-    if let Some(ms) = lifetime_ms {
+    if kind == ToastKind::Info {
         crate::util::safe_spawn_local(async move {
-            crate::util::sleep(crate::util::millis(ms)).await;
+            crate::util::sleep(crate::util::millis(TOAST_DURATION_MS)).await;
             close(id);
         });
     }

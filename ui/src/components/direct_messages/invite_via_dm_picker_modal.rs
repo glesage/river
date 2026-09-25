@@ -41,7 +41,6 @@ use crate::components::direct_messages::{
 };
 use crate::components::members::{collect_invitation_secrets, Invitation};
 use crate::components::toast::show_toast;
-use crate::util::ecies::unseal_bytes_with_secrets;
 use dioxus::logger::tracing::{error, info, warn};
 use dioxus::prelude::*;
 use dioxus_free_icons::{icons::fa_solid_icons::FaLock, Icon};
@@ -199,16 +198,7 @@ pub fn InviteViaDmPickerModal() -> Element {
                 .iter()
                 .filter(|(owner_vk, _)| **owner_vk != current_room)
                 .map(|(owner_vk, room_data)| {
-                    let sealed_name = &room_data
-                        .room_state
-                        .configuration
-                        .configuration
-                        .display
-                        .name;
-                    let label = match unseal_bytes_with_secrets(sealed_name, &room_data.secrets) {
-                        Ok(bytes) => String::from_utf8_lossy(&bytes).to_string(),
-                        Err(_) => sealed_name.to_string_lossy(),
-                    };
+                    let label = room_data.display_name();
                     CandidateRoom {
                         room_vk: *owner_vk,
                         label,

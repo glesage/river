@@ -3637,7 +3637,7 @@ mod tests {
         );
         // The inbound path calls the background flavour, which does the same
         // unhide but counts its save as background work rather than a user
-        // action (docs/plans/loading-indicators.md).
+        // action.
         assert!(
             seg.contains(&format!(
                 "{}{}",
@@ -7253,16 +7253,14 @@ fn unhide_dm_thread_saving(
         // would resurrect on the next reload — the in-memory
         // tombstone is session-only by design.
         crate::util::safe_spawn_local(async move {
-            let saved = if by_user {
-                crate::components::app::node_activity::track(
+            // Only an explicit user action waits visibly; named so the guard
+            // lives across the save.
+            let _busy = by_user.then(|| {
+                crate::components::app::node_activity::busy(
                     crate::components::app::node_activity::ActionKind::Saving,
-                    save_outbound_dms_to_delegate(),
                 )
-                .await
-            } else {
-                save_outbound_dms_to_delegate().await
-            };
-            if let Err(e) = saved {
+            });
+            if let Err(e) = save_outbound_dms_to_delegate().await {
                 warn!("Failed to persist unhide-DM-thread update: {}", e);
             }
         });

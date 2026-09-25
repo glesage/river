@@ -13,11 +13,11 @@
 use dioxus::prelude::*;
 
 /// Dots in a row of wave dots.
-pub(crate) const WAVE_DOT_COUNT: usize = 10;
+const WAVE_DOT_COUNT: usize = 10;
 
 /// Dots in a row of small dots. main.css's open `.pill-activity` width must
 /// fit exactly this many (see `pill_width_fits_the_dots`).
-pub(crate) const SMALL_DOT_COUNT: usize = 5;
+const SMALL_DOT_COUNT: usize = 5;
 
 /// One row's worth of wave dots, for a container with class `river-flow`.
 /// `seed` picks the wave: keep it stable for as long as the row is up, so a
@@ -118,7 +118,7 @@ const WAVE_EASES: [&str; 6] = [
 /// One dot's share of the wave, emitted as custom properties that main.css's
 /// keyframes read.
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub(crate) struct DotMotion {
+struct DotMotion {
     amp_px: f64,
     phase_jitter_s: f64,
     ease: &'static str,
@@ -145,7 +145,7 @@ impl DotMotion {
 
 /// The wave for one appearance of the dots. Deterministic in `seed`, so the
 /// same appearance renders the same wave on every re-render.
-pub(crate) fn dot_motions(seed: u64) -> [DotMotion; WAVE_DOT_COUNT] {
+fn dot_motions(seed: u64) -> [DotMotion; WAVE_DOT_COUNT] {
     let mut rng = SplitMix64(seed);
     std::array::from_fn(|_| {
         let swell_period_s = rng.range(SWELL_PERIOD_S);
@@ -187,22 +187,12 @@ mod tests {
     /// indicators), never a spinner: one visual language for "in progress".
     #[test]
     fn no_spinners_are_left() {
-        use std::path::{Path, PathBuf};
-        fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
-            for entry in std::fs::read_dir(dir).expect("readable source dir") {
-                let path = entry.expect("readable dir entry").path();
-                if path.is_dir() {
-                    rust_files(&path, out);
-                } else if path.extension().is_some_and(|e| e == "rs") {
-                    out.push(path);
-                }
-            }
-        }
+        use std::path::Path;
         // Split, so this file doesn't match itself.
         let needle = concat!("animate-", "spin");
         let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
         let mut files = Vec::new();
-        rust_files(&src, &mut files);
+        crate::util::source_scan::rust_files(&src, &mut files);
         assert!(files.len() > 20, "source walk found suspiciously few files");
         let offenders: Vec<String> = files
             .iter()

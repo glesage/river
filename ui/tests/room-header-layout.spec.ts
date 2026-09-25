@@ -1,4 +1,5 @@
 import { test, expect, Page, Locator } from "@playwright/test";
+import { waitForApp } from "./example-room";
 
 // Room header layout: the room title stays on the LEFT and is clickable; the
 // room-details (i) and the notification bell form a right-aligned action
@@ -9,11 +10,6 @@ const ROOM = "Public Discussion Room";
 
 // Sub-pixel layout rounding differs across engines; nothing here needs more.
 const EPS = 2;
-
-async function waitForApp(page: Page) {
-  await page.waitForSelector(".app-root", { timeout: 30_000 });
-  await expect(page.locator("aside, .app-root button")).not.toHaveCount(0);
-}
 
 /**
  * Select ROOM at desktop width (the room list is always visible there), then

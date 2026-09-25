@@ -7,11 +7,12 @@ use dioxus::logger::tracing::{error, info, warn};
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::fa_solid_icons::FaCopy;
 use dioxus_free_icons::Icon;
-use ed25519_dalek::VerifyingKey;
+use ed25519_dalek::{SigningKey, VerifyingKey};
 use freenet_scaffold::ComposableState;
+use river_core::chat_delegate::RoomKey;
 use river_core::room_state::configuration::{AuthorizedConfigurationV1, Configuration};
 use river_core::room_state::privacy::{PrivacyMode, RoomDisplayMetadata};
-use river_core::room_state::{ChatRoomParametersV1, ChatRoomStateV1Delta};
+use river_core::room_state::{ChatRoomParametersV1, ChatRoomStateV1, ChatRoomStateV1Delta};
 use std::ops::Deref;
 use wasm_bindgen_futures::spawn_local;
 
@@ -650,69 +651,14 @@ fn RoomDescriptionField(config: Configuration, is_owner: bool) -> Element {
         };
         new_config.configuration_version += 1;
 
-        spawn_local(async move {
-            // The user waits on the node from here: the delegate's
-            // signature, then the UPDATE. Moved into the deferred apply
-            // below, so it ends only once the UPDATE wait has taken over.
-            let busy = crate::components::app::node_activity::busy(
-                crate::components::app::node_activity::ActionKind::Saving,
-            );
-            let mut config_bytes = Vec::new();
-            if let Err(e) = ciborium::ser::into_writer(&new_config, &mut config_bytes) {
-                error!("Failed to serialize config for signing: {:?}", e);
-                return;
-            }
-
-            let signature =
-                crate::signing::sign_config_with_fallback(room_key, config_bytes, &self_sk).await;
-
-            let new_authorized_config =
-                AuthorizedConfigurationV1::with_signature(new_config, signature);
-
-            let delta = ChatRoomStateV1Delta {
-                configuration: Some(new_authorized_config),
-                ..Default::default()
-            };
-
-            // Defer ROOMS mutation to a clean execution context to
-            // prevent RefCell re-entrant borrow panics.
-            crate::util::defer(move || {
-                let _busy = busy;
-                let applied = ROOMS.with_mut(|rooms| {
-                    if let Some(room_data) = rooms.map.get_mut(&owner_key) {
-                        match ComposableState::apply_delta(
-                            &mut room_data.room_state,
-                            &room_state_clone,
-                            &ChatRoomParametersV1 { owner: owner_key },
-                            &Some(delta),
-                        ) {
-                            Ok(_) => {
-                                info!("Room description updated successfully");
-                                // #310: apply_delta re-runs the public-only
-                                // actions-state rebuild; re-derive private
-                                // edits/reactions with decryption. No-op on
-                                // public rooms.
-                                room_data.rebuild_private_actions_state();
-                                true
-                            }
-                            Err(e) => {
-                                error!("Failed to apply description delta: {:?}", e);
-                                false
-                            }
-                        }
-                    } else {
-                        false
-                    }
-                });
-                if applied {
-                    crate::components::app::node_activity::await_room_update(
-                        owner_key,
-                        crate::components::app::node_activity::ActionKind::Saving,
-                    );
-                    crate::components::app::mark_needs_sync(owner_key);
-                }
-            });
-        });
+        sign_and_apply_configuration(
+            owner_key,
+            room_key,
+            self_sk,
+            room_state_clone,
+            new_config,
+            "Room description",
+        );
     };
 
     rsx! {
@@ -845,69 +791,14 @@ fn NumericConfigField(
         field.set(&mut new_config, new_val);
         new_config.configuration_version += 1;
 
-        spawn_local(async move {
-            // The user waits on the node from here: the delegate's
-            // signature, then the UPDATE. Moved into the deferred apply
-            // below, so it ends only once the UPDATE wait has taken over.
-            let busy = crate::components::app::node_activity::busy(
-                crate::components::app::node_activity::ActionKind::Saving,
-            );
-            let mut config_bytes = Vec::new();
-            if let Err(e) = ciborium::ser::into_writer(&new_config, &mut config_bytes) {
-                error!("Failed to serialize config: {:?}", e);
-                return;
-            }
-
-            let signature =
-                crate::signing::sign_config_with_fallback(room_key, config_bytes, &self_sk).await;
-
-            let new_authorized_config =
-                AuthorizedConfigurationV1::with_signature(new_config, signature);
-
-            let delta = ChatRoomStateV1Delta {
-                configuration: Some(new_authorized_config),
-                ..Default::default()
-            };
-
-            // Defer ROOMS mutation to a clean execution context to
-            // prevent RefCell re-entrant borrow panics.
-            crate::util::defer(move || {
-                let _busy = busy;
-                let applied = ROOMS.with_mut(|rooms| {
-                    if let Some(room_data) = rooms.map.get_mut(&owner_key) {
-                        match ComposableState::apply_delta(
-                            &mut room_data.room_state,
-                            &room_state_clone,
-                            &ChatRoomParametersV1 { owner: owner_key },
-                            &Some(delta),
-                        ) {
-                            Ok(_) => {
-                                info!("{label} updated successfully");
-                                // #310: apply_delta re-runs the public-only
-                                // actions-state rebuild; re-derive private
-                                // edits/reactions with decryption. No-op on
-                                // public rooms.
-                                room_data.rebuild_private_actions_state();
-                                true
-                            }
-                            Err(e) => {
-                                error!("Failed to apply {label} delta: {:?}", e);
-                                false
-                            }
-                        }
-                    } else {
-                        false
-                    }
-                });
-                if applied {
-                    crate::components::app::node_activity::await_room_update(
-                        owner_key,
-                        crate::components::app::node_activity::ActionKind::Saving,
-                    );
-                    crate::components::app::mark_needs_sync(owner_key);
-                }
-            });
-        });
+        sign_and_apply_configuration(
+            owner_key,
+            room_key,
+            self_sk,
+            room_state_clone,
+            new_config,
+            label,
+        );
     };
 
     rsx! {
@@ -981,69 +872,14 @@ fn MaxMembersField(
         new_config.max_members = new_max;
         new_config.configuration_version += 1;
 
-        wasm_bindgen_futures::spawn_local(async move {
-            // The user waits on the node from here: the delegate's
-            // signature, then the UPDATE. Moved into the deferred apply
-            // below, so it ends only once the UPDATE wait has taken over.
-            let busy = crate::components::app::node_activity::busy(
-                crate::components::app::node_activity::ActionKind::Saving,
-            );
-            let mut config_bytes = Vec::new();
-            if let Err(e) = ciborium::ser::into_writer(&new_config, &mut config_bytes) {
-                error!("Failed to serialize config: {:?}", e);
-                return;
-            }
-
-            let signature =
-                crate::signing::sign_config_with_fallback(room_key, config_bytes, &self_sk).await;
-
-            let new_authorized_config =
-                AuthorizedConfigurationV1::with_signature(new_config, signature);
-
-            let delta = ChatRoomStateV1Delta {
-                configuration: Some(new_authorized_config),
-                ..Default::default()
-            };
-
-            // Defer ROOMS mutation to a clean execution context to
-            // prevent RefCell re-entrant borrow panics.
-            crate::util::defer(move || {
-                let _busy = busy;
-                let applied = ROOMS.with_mut(|rooms| {
-                    if let Some(room_data) = rooms.map.get_mut(&owner_key) {
-                        match ComposableState::apply_delta(
-                            &mut room_data.room_state,
-                            &room_state_clone,
-                            &ChatRoomParametersV1 { owner: owner_key },
-                            &Some(delta),
-                        ) {
-                            Ok(_) => {
-                                info!("max_members updated successfully");
-                                // #310: apply_delta re-runs the public-only
-                                // actions-state rebuild; re-derive private
-                                // edits/reactions with decryption. No-op on
-                                // public rooms.
-                                room_data.rebuild_private_actions_state();
-                                true
-                            }
-                            Err(e) => {
-                                error!("Failed to apply max_members delta: {:?}", e);
-                                false
-                            }
-                        }
-                    } else {
-                        false
-                    }
-                });
-                if applied {
-                    crate::components::app::node_activity::await_room_update(
-                        owner_key,
-                        crate::components::app::node_activity::ActionKind::Saving,
-                    );
-                    crate::components::app::mark_needs_sync(owner_key);
-                }
-            });
-        });
+        sign_and_apply_configuration(
+            owner_key,
+            room_key,
+            self_sk,
+            room_state_clone,
+            new_config,
+            "Max members",
+        );
     };
 
     rsx! {
@@ -1073,6 +909,84 @@ fn MaxMembersField(
             }
         }
     }
+}
+
+/// Sign an already-prepared configuration edit, apply it to the room, and hand
+/// it to the sync.
+///
+/// Everything field-specific stays with the caller: parsing, the ownership and
+/// signing-key checks, sealing, rolling the input back on refusal, and bumping
+/// `configuration_version`. `room_state` is the state captured alongside the
+/// key, which `apply_delta` validates against. `what` names the field in logs.
+pub(super) fn sign_and_apply_configuration(
+    owner_key: VerifyingKey,
+    room_key: RoomKey,
+    self_sk: SigningKey,
+    room_state: ChatRoomStateV1,
+    new_config: Configuration,
+    what: &'static str,
+) {
+    spawn_local(async move {
+        // The user waits on the node from here: the delegate's signature, then
+        // the UPDATE. Moved into the deferred apply below, so it ends only once
+        // the UPDATE wait has taken over.
+        let busy = crate::components::app::node_activity::busy(
+            crate::components::app::node_activity::ActionKind::Saving,
+        );
+        let mut config_bytes = Vec::new();
+        if let Err(e) = ciborium::ser::into_writer(&new_config, &mut config_bytes) {
+            error!("Failed to serialize {what} config for signing: {:?}", e);
+            return;
+        }
+
+        let signature =
+            crate::signing::sign_config_with_fallback(room_key, config_bytes, &self_sk).await;
+
+        let delta = ChatRoomStateV1Delta {
+            configuration: Some(AuthorizedConfigurationV1::with_signature(
+                new_config, signature,
+            )),
+            ..Default::default()
+        };
+
+        // Defer ROOMS mutation to a clean execution context to prevent
+        // RefCell re-entrant borrow panics.
+        crate::util::defer(move || {
+            let _busy = busy;
+            let applied = ROOMS.with_mut(|rooms| {
+                let Some(room_data) = rooms.map.get_mut(&owner_key) else {
+                    return false;
+                };
+                match ComposableState::apply_delta(
+                    &mut room_data.room_state,
+                    &room_state,
+                    &ChatRoomParametersV1 { owner: owner_key },
+                    &Some(delta),
+                ) {
+                    Ok(_) => {
+                        info!("{what} updated successfully");
+                        // #310: apply_delta re-runs the public-only
+                        // actions-state rebuild; re-derive private
+                        // edits/reactions with decryption. No-op on public
+                        // rooms.
+                        room_data.rebuild_private_actions_state();
+                        true
+                    }
+                    Err(e) => {
+                        error!("Failed to apply {what} delta: {:?}", e);
+                        false
+                    }
+                }
+            });
+            if applied {
+                crate::components::app::node_activity::await_room_update(
+                    owner_key,
+                    crate::components::app::node_activity::ActionKind::Saving,
+                );
+                crate::components::app::mark_needs_sync(owner_key);
+            }
+        });
+    });
 }
 
 #[cfg(test)]

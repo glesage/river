@@ -254,9 +254,8 @@ pub async fn handle_get_response(
                     });
                 });
 
-                // Finish the now-moot pending invite exactly like a completed
-                // accept: `finish_join` clears it, persistently dismisses the
-                // invitation and confirms with a toast.
+                // The now-moot pending invite finishes exactly like a
+                // completed accept (see `finish_join`).
                 crate::util::defer(move || {
                     finish_join(owner_vk);
                 });
@@ -399,8 +398,6 @@ pub async fn handle_get_response(
                             .write()
                             .update_sync_status(&owner_vk, RoomSyncStatus::Error(err_msg.clone()));
                     });
-                    // Report the failure in an error toast the user can
-                    // retry from.
                     crate::util::defer(move || {
                         fail_join(owner_vk, err.to_string());
                     });
@@ -763,10 +760,9 @@ pub async fn handle_get_response(
                     mark_initial_sync_complete(&owner_vk);
                 });
 
-                // The join is done: open the room, and let `finish_join` clear
-                // the pending invite, persistently dismiss the invitation and
-                // confirm with a toast. Runs after the deferred ROOMS insert
-                // above (`defer` is FIFO), so the toast can name the room.
+                // The join is done: open the room (see `finish_join`). Runs
+                // after the deferred ROOMS insert above (`defer` is FIFO), so
+                // the toast can name the room.
                 crate::util::defer(move || {
                     CURRENT_ROOM.with_mut(|current_room| {
                         current_room.owner_key = Some(owner_vk);
