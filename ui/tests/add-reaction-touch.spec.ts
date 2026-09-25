@@ -1,36 +1,41 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
+import { waitForApp, openRoomWithComposer } from "./example-room";
 
-// `.msg-react-btn` / `.msg-action-btn` (ui/assets/main.css) reveal on `:hover`,
-// which a touch pointer can't trigger, so without the touch rule they render at
-// opacity 0 yet still take taps (same failure as #402 and #462). Probed against
-// the shipped stylesheets. Also pins that there is NO minimum tap size: one was
-// tried in #605 and reverted because it made every reaction row taller.
+// Pins that a message's smiley and action buttons have NO minimum tap size on
+// a touch pointer. One was tried in #605 and reverted (#606) because it made
+// every reaction row taller. That they are visible at rest on touch, which
+// #605 fixed, is covered by message-reply-button.spec.ts's "hover reveals".
 
-test("on a touch pointer the smiley and action buttons are visible at rest, with no minimum tap size", async ({
+const PLUS = '[data-testid="add-reaction-button"]';
+const REPLY = '[data-testid="message-reply-button"]';
+const CHIP = '[data-testid="reaction-chip"]';
+
+function withoutReactions(page: Page) {
+  return page.locator(`[id^="msg-"]:not(:has(${CHIP}))`).first();
+}
+
+test("on a touch pointer the smiley and action buttons have no minimum tap size", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.waitForSelector(".app-root", { timeout: 30_000 });
-  const coarse = await page.evaluate(() => window.matchMedia("(hover: none), (any-pointer: coarse)").matches);
-  test.skip(!coarse, "touch only; message-reply-button's hover reveals cover a mouse");
+  await waitForApp(page);
+  const coarse = await page.evaluate(
+    () => window.matchMedia("(hover: none), (any-pointer: coarse)").matches
+  );
+  test.skip(!coarse, "touch only: the reverted minimum size was a touch rule");
 
-  for (const className of ["msg-react-btn", "msg-action-btn"]) {
-    // Mirrors the real markup in `conversation.rs`: a button inside a `group` row.
-    const m = await page.evaluate((className) => {
-      const row = document.createElement("div");
-      row.className = "group relative";
-      const btn = document.createElement("button");
-      btn.className = className;
-      row.appendChild(btn);
-      document.body.appendChild(row);
-      const { width, height } = btn.getBoundingClientRect();
-      const opacity = parseFloat(getComputedStyle(btn).opacity);
-      row.remove();
-      return { opacity, size: Math.min(width, height) };
-    }, className);
+  const narrow = (page.viewportSize()?.width ?? 1280) < 768;
+  await openRoomWithComposer(page, narrow);
 
-    expect(m.opacity, `${className} is invisible on touch: main.css's touch rule regressed`).toBeGreaterThanOrEqual(0.4);
-    // A plain <button> renders well under 44px, so this catches a re-added min size.
-    expect(m.size, `${className} has a minimum tap size again (reverted in #605)`).toBeLessThan(44);
+  const row = withoutReactions(page);
+  await row.scrollIntoViewIfNeeded();
+  // PLUS is `.msg-react-btn`, REPLY is `.msg-action-btn` (main.css).
+  for (const sel of [PLUS, REPLY]) {
+    const box = await row.locator(sel).boundingBox();
+    expect(box, `${sel} is rendered`).not.toBeNull();
+    expect(
+      Math.min(box!.width, box!.height),
+      `${sel} has a minimum tap size again (reverted in #606)`
+    ).toBeLessThan(44);
   }
 });

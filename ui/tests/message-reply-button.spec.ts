@@ -153,244 +153,278 @@ const reactionRowProblems = (page: Page) =>
 const DEEP_HISTORY_BAND =
   "a row's band pads 8px around its group and 2px between rows, and bands touch";
 
-test.beforeEach(async ({ page }, testInfo) => {
-  // That case boots the capped-history fixture itself. Loading Your Private
-  // Room first would throw the session away.
-  if (testInfo.title === DEEP_HISTORY_BAND) return;
-  await page.goto("/");
-  await waitForApp(page);
-  await selectRoom(page, "Your Private Room");
-});
+test.describe("message action buttons (Your Private Room)", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await waitForApp(page);
+    await selectRoom(page, "Your Private Room");
+  });
 
-test("action buttons: own rows reply, edit and delete; received rows reply and react", async ({ page }) => {
-  const own = ownRow(page);
-  const received = receivedRow(page);
-  await expect(own.locator(REPLY)).toHaveAttribute("aria-label", "Reply");
-  await expect(own.locator(EDIT)).toHaveAttribute("aria-label", "Edit message");
-  await expect(own.locator(DEL)).toHaveAttribute("aria-label", "Delete message");
-  await expect(received.locator(REPLY)).toHaveAttribute("aria-label", "Reply");
-  await expect(received.locator(PLUS)).toHaveAttribute("aria-label", "Add reaction");
-  await expect(received.locator(EDIT)).toHaveCount(0);
-  await expect(received.locator(DEL)).toHaveCount(0);
-});
+  test("action buttons: own rows reply, edit and delete; received rows reply and react", async ({ page }) => {
+    const own = ownRow(page);
+    const received = receivedRow(page);
+    await expect(own.locator(REPLY)).toHaveAttribute("aria-label", "Reply");
+    await expect(own.locator(EDIT)).toHaveAttribute("aria-label", "Edit message");
+    await expect(own.locator(DEL)).toHaveAttribute("aria-label", "Delete message");
+    await expect(received.locator(REPLY)).toHaveAttribute("aria-label", "Reply");
+    await expect(received.locator(PLUS)).toHaveAttribute("aria-label", "Add reaction");
+    await expect(received.locator(EDIT)).toHaveCount(0);
+    await expect(received.locator(DEL)).toHaveCount(0);
+  });
 
-// The widths are re-checked after a resize because the 75% text cap follows
-// the column (`--chat-col` from `#chat-content`'s `onresize`), not the width
-// the page loaded with.
-test("reaction row layout: chips and smiley at the bubble's left, buttons at its right, one line when it fits", async ({
-  page,
-}) => {
-  for (const width of [1280, 900]) {
-    await page.setViewportSize({ width, height: 900 });
-    await expect.poll(() => reactionRowProblems(page), { message: `at ${width}px` }).toEqual([]);
-  }
-});
-
-// The cluster (time first, then the buttons) keeps 16px clear of what precedes
-// it, which is now the smiley after the last chip.
-test("a full reaction row keeps 16px between the smiley and the time and buttons", async ({ page }) => {
-  const row = outOfLineRow(page);
-  await row.scrollIntoViewIfNeeded();
-  const smiley = (await row.locator(PLUS).boundingBox())!;
-  const time = (await row.locator(TIME).boundingBox())!;
-  // Only meaningful when the row did not wrap between them.
-  test.skip(Math.abs(smiley.y + smiley.height / 2 - (time.y + time.height / 2)) > 4, "row wrapped");
-  expect(time.x - (smiley.x + smiley.width)).toBeGreaterThanOrEqual(15);
-});
-
-test("a received message shows its time in the button cluster, before the reply arrow", async ({ page }) => {
-  const row = receivedRow(page);
-  await row.scrollIntoViewIfNeeded();
-  await expect(row.locator(`${CLUSTER} ${TIME}`)).toHaveCount(1);
-  await expect(row.locator(TIME)).toHaveText(/\d/);
-  await expect(row.locator(TIME)).toHaveAttribute("title", /\d/);
-  const time = (await row.locator(TIME).boundingBox())!;
-  const reply = (await row.locator(REPLY).boundingBox())!;
-  expect(time.x + time.width).toBeLessThanOrEqual(reply.x);
-});
-
-test("a reaction-less row is no taller than its time-and-buttons cluster", async ({ page }) => {
-  const row = withoutReactions(page);
-  await row.scrollIntoViewIfNeeded();
-  const line = (await row.locator(REACTION_ROW).boundingBox())!;
-  const cluster = (await row.locator(CLUSTER).boundingBox())!;
-  expect(Math.abs(line.height - cluster.height)).toBeLessThanOrEqual(1);
-});
-
-test.describe("reaction chips", () => {
-  test("clicking a chip someone else made adds your reaction, and again removes it", async ({
+  // The widths are re-checked after a resize because the 75% text cap follows
+  // the column (`--chat-col` from `#chat-content`'s `onresize`), not the width
+  // the page loaded with.
+  test("reaction row layout: chips and smiley at the bubble's left, buttons at its right, one line when it fits", async ({
     page,
   }) => {
-    const row = outOfLineRow(page);
-    await row.scrollIntoViewIfNeeded();
-    const first = row.locator(CHIP).first();
-    const emoji = (await first.getAttribute("data-emoji"))!;
-    await expect(first).toHaveAttribute("aria-pressed", "false");
-    const before = Number(await first.locator(COUNT).textContent());
-    const chip = row.locator(`${CHIP}[data-emoji="${emoji}"]`);
-    const theirs = row.locator(`${CHIP}[aria-pressed="false"]`).first();
-
-    await chip.click();
-    await expect(chip).toHaveAttribute("aria-pressed", "true");
-    await expect(chip.locator(COUNT)).toHaveText(String(before + 1));
-    // Your own reaction's chip is marked by its fill. Polled: the click left
-    // the pointer on the chip, and the hover colour transitions out.
-    await page.mouse.move(0, 0);
-    await expect
-      .poll(async () => (await css(chip, "backgroundColor")) !== (await css(theirs, "backgroundColor")))
-      .toBe(true);
-
-    await chip.click();
-    await expect(chip).toHaveAttribute("aria-pressed", "false");
-    await expect(chip.locator(COUNT)).toHaveText(String(before));
-  });
-
-  test("a new emoji is appended after the existing chips", async ({ page }) => {
-    const row = outOfLineRow(page);
-    await row.scrollIntoViewIfNeeded();
-    const before = await chipEmojis(row);
-    await row.hover();
-    await row.locator(PLUS).click();
-    const options = (await page.locator(PICKER).locator("button").allTextContents()).map((s) => s.trim());
-    const idx = options.findIndex((e) => !before.includes(e));
-    expect(idx, "the picker offers an emoji not already on the message").toBeGreaterThanOrEqual(0);
-    await page.locator(PICKER).locator("button").nth(idx).click();
-
-    await expect(row.locator(CHIP)).toHaveCount(before.length + 1);
-    expect(await chipEmojis(row)).toEqual([...before, options[idx]]);
-    await expect(row.locator(CHIP).last()).toHaveAttribute("aria-pressed", "true");
-    await expect(row.locator(CHIP).last().locator(COUNT)).toHaveText("1");
-  });
-
-  test("hovering a chip changes its background without resizing it", async ({ page }) => {
-    test.skip(await isCoarse(page), "hover styles need a hover-capable pointer");
-
-    const row = outOfLineRow(page);
-    await row.scrollIntoViewIfNeeded();
-    await page.mouse.move(0, 0);
-    const chip = row.locator(`${CHIP}[aria-pressed="false"]`).first();
-    const restBg = await css(chip, "backgroundColor");
-    const rest = (await chip.boundingBox())!;
-
-    await chip.hover();
-    await expect.poll(() => css(chip, "backgroundColor")).not.toBe(restBg);
-    // The border is always there, invisible at rest, so hover shifts nothing.
-    const hovered = (await chip.boundingBox())!;
-    expect(Math.abs(hovered.width - rest.width)).toBeLessThanOrEqual(0.5);
-    expect(Math.abs(hovered.height - rest.height)).toBeLessThanOrEqual(0.5);
-  });
-
-  // A bubble's corners follow only its place in its group. A reaction used to
-  // square off a bottom corner of a group's LAST bubble (the only position
-  // whose shape it changed), so react to one of those and compare all four.
-  for (const kind of ["own", "received"] as const) {
-    test(`adding a reaction leaves the bubble's corners unchanged (${kind})`, async ({ page }) => {
-      const side = kind === "own" ? ":has(.bg-accent)" : ":not(:has(.bg-accent))";
-      const candidate = page
-        .locator(`.msg-bubbles > .msg-row:last-child${side}:not(:has(${CHIP}))`)
-        .last();
-      // Pinned by id: the `:not(:has(chip))` locator stops matching once it reacts.
-      const row = page.locator(`[id="${await candidate.getAttribute("id")}"]`);
-      const corners = () =>
-        bubbleOf(row).evaluate((el) => {
-          const s = getComputedStyle(el);
-          return [
-            s.borderTopLeftRadius,
-            s.borderTopRightRadius,
-            s.borderBottomRightRadius,
-            s.borderBottomLeftRadius,
-          ];
-        });
-      await row.scrollIntoViewIfNeeded();
-      const before = await corners();
-
-      await row.hover();
-      await row.locator(PLUS).click();
-      await page.locator(PICKER).locator("button").first().click();
-      await expect(row.locator(CHIP)).toHaveCount(1);
-
-      expect(await corners()).toEqual(before);
-    });
-  }
-});
-
-// Narrowest supported width.
-test.describe("picker at 320px", () => {
-  test.use({ viewport: { width: 320, height: 700 } });
-
-  for (const kind of ["own", "received"] as const) {
-    test(`via smiley (${kind})`, async ({ page }) => {
-      const row = kind === "own" ? ownRow(page) : receivedRow(page);
-      await row.scrollIntoViewIfNeeded();
-      await row.hover();
-      await row.locator(PLUS).click();
-      const picker = (await page.locator(PICKER).boundingBox())!;
-      expect(picker.x).toBeGreaterThanOrEqual(-1);
-      expect(picker.x + picker.width).toBeLessThanOrEqual(321);
-    });
-  }
-});
-
-test("clicking delete asks for confirmation", async ({ page }) => {
-  const row = ownRow(page);
-  await row.hover();
-  await row.locator(DEL).click();
-  const cancel = page.getByRole("button", { name: "Cancel" });
-  await expect(cancel).toBeVisible();
-  await cancel.click();
-  await expect(row.locator(EDIT)).toHaveCount(1);
-});
-
-test("clicking the reply arrow opens the composer reply preview", async ({
-  page,
-}) => {
-  const row = receivedRow(page);
-  await row.hover();
-  await row.locator(REPLY).click();
-  await expect(page.getByTitle("Cancel reply")).toBeVisible({
-    timeout: 5_000,
-  });
-});
-
-// The time and buttons show on hover with a mouse, and always on touch.
-test.describe("hover reveals", () => {
-  test("a message's smiley, reply arrow and time stay hidden until it is hovered", async ({ page }) => {
-    const coarse = await isCoarse(page);
-    for (const row of [receivedWithReactions(page), ownRow(page)]) {
-      if (coarse) {
-        // No hover on touch, so they must be visible at rest.
-        for (const sel of [PLUS, REPLY, TIME])
-          await expect.poll(() => opacity(row.locator(sel)), sel).toBeGreaterThanOrEqual(0.4);
-      } else {
-        await expectHiddenUntilHovered(page, row, bubbleOf(row), [PLUS, REPLY, TIME]);
-      }
+    for (const width of [1280, 900]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect.poll(() => reactionRowProblems(page), { message: `at ${width}px` }).toEqual([]);
     }
   });
 
-  test("hovering anywhere on a message row fills the whole row with the band grey", async ({ page }) => {
-    test.skip(await isCoarse(page), "no hover band on touch");
-    const row = ownRow(page); // our own, right-aligned: the row's left part is empty
+  // The cluster (time first, then the buttons) keeps 16px clear of what precedes
+  // it, which is now the smiley after the last chip.
+  test("a full reaction row keeps 16px between the smiley and the time and buttons", async ({ page }) => {
+    const row = outOfLineRow(page);
     await row.scrollIntoViewIfNeeded();
-    const band = await rowHover(page);
-    await page.mouse.move(0, 0);
-    await expect.poll(() => css(row, "backgroundColor")).toBe("rgba(0, 0, 0, 0)");
-
-    // The row spans the message column plus 8px each side, not just its bubble,
-    // and the bubble stays at the column's edge.
-    const r = (await row.boundingBox())!;
-    const col = (await page.getByTestId("conversation-history").boundingBox())!;
-    expect(Math.abs(r.x - (col.x - 8))).toBeLessThanOrEqual(1);
-    expect(Math.abs(r.x + r.width - (col.x + col.width + 8))).toBeLessThanOrEqual(1);
-
-    // Hovering the empty space left of the bubble fills the row and reveals its buttons.
-    const b = (await bubbleOf(row).boundingBox())!;
-    expect(Math.abs(b.x + b.width - (col.x + col.width))).toBeLessThanOrEqual(1);
-    expect(b.x - r.x).toBeGreaterThan(40);
-    await page.mouse.move(r.x + 10, r.y + r.height / 2);
-    await expect.poll(() => css(row, "backgroundColor")).toBe(band);
-    await expect.poll(() => opacity(row.locator(REPLY))).toBeGreaterThan(0);
+    const smiley = (await row.locator(PLUS).boundingBox())!;
+    const time = (await row.locator(TIME).boundingBox())!;
+    // Only meaningful when the row did not wrap between them.
+    test.skip(Math.abs(smiley.y + smiley.height / 2 - (time.y + time.height / 2)) > 4, "row wrapped");
+    expect(time.x - (smiley.x + smiley.width)).toBeGreaterThanOrEqual(15);
   });
 
+  test("a received message shows its time in the button cluster, before the reply arrow", async ({ page }) => {
+    const row = receivedRow(page);
+    await row.scrollIntoViewIfNeeded();
+    await expect(row.locator(`${CLUSTER} ${TIME}`)).toHaveCount(1);
+    await expect(row.locator(TIME)).toHaveText(/\d/);
+    await expect(row.locator(TIME)).toHaveAttribute("title", /\d/);
+    const time = (await row.locator(TIME).boundingBox())!;
+    const reply = (await row.locator(REPLY).boundingBox())!;
+    expect(time.x + time.width).toBeLessThanOrEqual(reply.x);
+  });
+
+  test("a reaction-less row is no taller than its time-and-buttons cluster", async ({ page }) => {
+    const row = withoutReactions(page);
+    await row.scrollIntoViewIfNeeded();
+    const line = (await row.locator(REACTION_ROW).boundingBox())!;
+    const cluster = (await row.locator(CLUSTER).boundingBox())!;
+    expect(Math.abs(line.height - cluster.height)).toBeLessThanOrEqual(1);
+  });
+
+  test.describe("reaction chips", () => {
+    test("clicking a chip someone else made adds your reaction, and again removes it", async ({
+      page,
+    }) => {
+      const row = outOfLineRow(page);
+      await row.scrollIntoViewIfNeeded();
+      const first = row.locator(CHIP).first();
+      const emoji = (await first.getAttribute("data-emoji"))!;
+      await expect(first).toHaveAttribute("aria-pressed", "false");
+      const before = Number(await first.locator(COUNT).textContent());
+      const chip = row.locator(`${CHIP}[data-emoji="${emoji}"]`);
+      const theirs = row.locator(`${CHIP}[aria-pressed="false"]`).first();
+
+      await chip.click();
+      await expect(chip).toHaveAttribute("aria-pressed", "true");
+      await expect(chip.locator(COUNT)).toHaveText(String(before + 1));
+      // Your own reaction's chip is marked by its fill. Polled: the click left
+      // the pointer on the chip, and the hover colour transitions out.
+      await page.mouse.move(0, 0);
+      await expect
+        .poll(async () => (await css(chip, "backgroundColor")) !== (await css(theirs, "backgroundColor")))
+        .toBe(true);
+
+      await chip.click();
+      await expect(chip).toHaveAttribute("aria-pressed", "false");
+      await expect(chip.locator(COUNT)).toHaveText(String(before));
+    });
+
+    test("a new emoji is appended after the existing chips", async ({ page }) => {
+      const row = outOfLineRow(page);
+      await row.scrollIntoViewIfNeeded();
+      const before = await chipEmojis(row);
+      await row.hover();
+      await row.locator(PLUS).click();
+      const options = (await page.locator(PICKER).locator("button").allTextContents()).map((s) => s.trim());
+      const idx = options.findIndex((e) => !before.includes(e));
+      expect(idx, "the picker offers an emoji not already on the message").toBeGreaterThanOrEqual(0);
+      await page.locator(PICKER).locator("button").nth(idx).click();
+
+      await expect(row.locator(CHIP)).toHaveCount(before.length + 1);
+      expect(await chipEmojis(row)).toEqual([...before, options[idx]]);
+      await expect(row.locator(CHIP).last()).toHaveAttribute("aria-pressed", "true");
+      await expect(row.locator(CHIP).last().locator(COUNT)).toHaveText("1");
+    });
+
+    test("hovering a chip changes its background without resizing it", async ({ page }) => {
+      test.skip(await isCoarse(page), "hover styles need a hover-capable pointer");
+
+      const row = outOfLineRow(page);
+      await row.scrollIntoViewIfNeeded();
+      await page.mouse.move(0, 0);
+      const chip = row.locator(`${CHIP}[aria-pressed="false"]`).first();
+      const restBg = await css(chip, "backgroundColor");
+      const rest = (await chip.boundingBox())!;
+
+      await chip.hover();
+      await expect.poll(() => css(chip, "backgroundColor")).not.toBe(restBg);
+      // The border is always there, invisible at rest, so hover shifts nothing.
+      const hovered = (await chip.boundingBox())!;
+      expect(Math.abs(hovered.width - rest.width)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(hovered.height - rest.height)).toBeLessThanOrEqual(0.5);
+    });
+
+    // A bubble's corners follow only its place in its group. A reaction used to
+    // square off a bottom corner of a group's LAST bubble (the only position
+    // whose shape it changed), so react to one of those and compare all four.
+    for (const kind of ["own", "received"] as const) {
+      test(`adding a reaction leaves the bubble's corners unchanged (${kind})`, async ({ page }) => {
+        const side = kind === "own" ? ":has(.bg-accent)" : ":not(:has(.bg-accent))";
+        const candidate = page
+          .locator(`.msg-bubbles > .msg-row:last-child${side}:not(:has(${CHIP}))`)
+          .last();
+        // Pinned by id: the `:not(:has(chip))` locator stops matching once it reacts.
+        const row = page.locator(`[id="${await candidate.getAttribute("id")}"]`);
+        const corners = () =>
+          bubbleOf(row).evaluate((el) => {
+            const s = getComputedStyle(el);
+            return [
+              s.borderTopLeftRadius,
+              s.borderTopRightRadius,
+              s.borderBottomRightRadius,
+              s.borderBottomLeftRadius,
+            ];
+          });
+        await row.scrollIntoViewIfNeeded();
+        const before = await corners();
+
+        await row.hover();
+        await row.locator(PLUS).click();
+        await page.locator(PICKER).locator("button").first().click();
+        await expect(row.locator(CHIP)).toHaveCount(1);
+
+        expect(await corners()).toEqual(before);
+      });
+    }
+  });
+
+  // Narrowest supported width.
+  test.describe("picker at 320px", () => {
+    test.use({ viewport: { width: 320, height: 700 } });
+
+    for (const kind of ["own", "received"] as const) {
+      test(`via smiley (${kind})`, async ({ page }) => {
+        const row = kind === "own" ? ownRow(page) : receivedRow(page);
+        await row.scrollIntoViewIfNeeded();
+        await row.hover();
+        await row.locator(PLUS).click();
+        const picker = (await page.locator(PICKER).boundingBox())!;
+        expect(picker.x).toBeGreaterThanOrEqual(-1);
+        expect(picker.x + picker.width).toBeLessThanOrEqual(321);
+      });
+    }
+  });
+
+  test("clicking delete asks for confirmation", async ({ page }) => {
+    const row = ownRow(page);
+    await row.hover();
+    await row.locator(DEL).click();
+    const cancel = page.getByRole("button", { name: "Cancel" });
+    await expect(cancel).toBeVisible();
+    await cancel.click();
+    await expect(row.locator(EDIT)).toHaveCount(1);
+  });
+
+  test("clicking the reply arrow opens the composer reply preview", async ({
+    page,
+  }) => {
+    const row = receivedRow(page);
+    await row.hover();
+    await row.locator(REPLY).click();
+    await expect(page.getByTitle("Cancel reply")).toBeVisible({
+      timeout: 5_000,
+    });
+  });
+
+  // The time and buttons show on hover with a mouse, and always on touch.
+  test.describe("hover reveals", () => {
+    test("a message's smiley, reply arrow and time stay hidden until it is hovered", async ({ page }) => {
+      const coarse = await isCoarse(page);
+      for (const row of [receivedWithReactions(page), ownRow(page)]) {
+        if (coarse) {
+          // No hover on touch, so they must be visible at rest.
+          for (const sel of [PLUS, REPLY, TIME])
+            await expect.poll(() => opacity(row.locator(sel)), sel).toBeGreaterThanOrEqual(0.4);
+        } else {
+          await expectHiddenUntilHovered(page, row, bubbleOf(row), [PLUS, REPLY, TIME]);
+        }
+      }
+    });
+
+    test("hovering anywhere on a message row fills the whole row with the band grey", async ({ page }) => {
+      test.skip(await isCoarse(page), "no hover band on touch");
+      const row = ownRow(page); // our own, right-aligned: the row's left part is empty
+      await row.scrollIntoViewIfNeeded();
+      const band = await rowHover(page);
+      await page.mouse.move(0, 0);
+      await expect.poll(() => css(row, "backgroundColor")).toBe("rgba(0, 0, 0, 0)");
+
+      // The row spans the message column plus 8px each side, not just its bubble,
+      // and the bubble stays at the column's edge.
+      const r = (await row.boundingBox())!;
+      const col = (await page.getByTestId("conversation-history").boundingBox())!;
+      expect(Math.abs(r.x - (col.x - 8))).toBeLessThanOrEqual(1);
+      expect(Math.abs(r.x + r.width - (col.x + col.width + 8))).toBeLessThanOrEqual(1);
+
+      // Hovering the empty space left of the bubble fills the row and reveals its buttons.
+      const b = (await bubbleOf(row).boundingBox())!;
+      expect(Math.abs(b.x + b.width - (col.x + col.width))).toBeLessThanOrEqual(1);
+      expect(b.x - r.x).toBeGreaterThan(40);
+      await page.mouse.move(r.x + 10, r.y + r.height / 2);
+      await expect.poll(() => css(row, "backgroundColor")).toBe(band);
+      await expect.poll(() => opacity(row.locator(REPLY))).toBeGreaterThan(0);
+    });
+
+    test("hovering a group's author header fills its first row and reveals that message's controls", async ({
+      page,
+    }) => {
+      test.skip(await isCoarse(page), "no hover band on touch; controls stay visible");
+      const first = page.locator('[id^="msg-"]:has(.msg-group-header)').first();
+      const header = first.locator(".msg-group-header");
+      await expectHiddenUntilHovered(page, first, header, [PLUS, REPLY, TIME]);
+      await expect.poll(() => css(first, "backgroundColor")).toBe(await rowHover(page));
+      const r = (await first.boundingBox())!;
+      const h = (await header.boundingBox())!;
+      expect(h.y).toBeGreaterThanOrEqual(r.y - 0.5);
+      expect(h.y + h.height).toBeLessThanOrEqual(r.y + r.height + 0.5);
+      // Later rows of the group carry no header of their own.
+      await expect(page.locator(".msg-row:not(:first-child) .msg-group-header")).toHaveCount(0);
+    });
+
+    test("the smiley and the row band stay while its picker is open", async ({ page }) => {
+      test.skip(await isCoarse(page), "buttons are always visible on touch");
+      const row = receivedWithReactions(page);
+      await row.scrollIntoViewIfNeeded();
+      await bubbleOf(row).hover();
+      await row.locator(PLUS).click();
+      await expect(page.locator(PICKER)).toBeVisible();
+      // No class keeps them shown: the picker's full-screen backdrop sits inside
+      // the row, so the row stays hovered wherever the mouse goes.
+      await page.mouse.move(0, 0);
+      await expect.poll(() => opacity(row.locator(PLUS))).toBe(1);
+      await expect.poll(() => css(row, "backgroundColor")).toBe(await rowHover(page));
+    });
+  });
+});
+
+test.describe("deep history band spacing", () => {
+  // Own describe, not the shared beforeEach above: this test boots the
+  // capped-history fixture directly (loading "Your Private Room" first
+  // would throw the session away).
   // The space around a row is padding inside its band (main.css `.msg-row`):
   // 8px at the sides and at a group's top and bottom, 2px between rows of one
   // group. So neighbouring bands touch and hovering never finds a dead strip.
@@ -438,35 +472,5 @@ test.describe("hover reveals", () => {
       return problems;
     });
     expect(problems).toEqual([]);
-  });
-
-  test("hovering a group's author header fills its first row and reveals that message's controls", async ({
-    page,
-  }) => {
-    test.skip(await isCoarse(page), "no hover band on touch; controls stay visible");
-    const first = page.locator('[id^="msg-"]:has(.msg-group-header)').first();
-    const header = first.locator(".msg-group-header");
-    await expectHiddenUntilHovered(page, first, header, [PLUS, REPLY, TIME]);
-    await expect.poll(() => css(first, "backgroundColor")).toBe(await rowHover(page));
-    const r = (await first.boundingBox())!;
-    const h = (await header.boundingBox())!;
-    expect(h.y).toBeGreaterThanOrEqual(r.y - 0.5);
-    expect(h.y + h.height).toBeLessThanOrEqual(r.y + r.height + 0.5);
-    // Later rows of the group carry no header of their own.
-    await expect(page.locator(".msg-row:not(:first-child) .msg-group-header")).toHaveCount(0);
-  });
-
-  test("the smiley and the row band stay while its picker is open", async ({ page }) => {
-    test.skip(await isCoarse(page), "buttons are always visible on touch");
-    const row = receivedWithReactions(page);
-    await row.scrollIntoViewIfNeeded();
-    await bubbleOf(row).hover();
-    await row.locator(PLUS).click();
-    await expect(page.locator(PICKER)).toBeVisible();
-    // No class keeps them shown: the picker's full-screen backdrop sits inside
-    // the row, so the row stays hovered wherever the mouse goes.
-    await page.mouse.move(0, 0);
-    await expect.poll(() => opacity(row.locator(PLUS))).toBe(1);
-    await expect.poll(() => css(row, "backgroundColor")).toBe(await rowHover(page));
   });
 });

@@ -2558,16 +2558,7 @@ pub fn Conversation() -> Element {
                     return "No Room Selected".to_string();
                 };
                 if let Some(room_data) = rooms.map.get(&key) {
-                    let sealed_name = &room_data
-                        .room_state
-                        .configuration
-                        .configuration
-                        .display
-                        .name;
-                    return match unseal_bytes_with_secrets(sealed_name, &room_data.secrets) {
-                        Ok(bytes) => String::from_utf8_lossy(&bytes).to_string(),
-                        Err(_) => sealed_name.to_string_lossy(),
-                    };
+                    return room_data.display_name();
                 }
             }
             "No Room Selected".to_string()

@@ -25,19 +25,17 @@ impl NodeApi {
     /// awaiting a reply.
     pub async fn send(&mut self, request: ClientRequest<'static>) -> Result<(), ClientApiError> {
         let kind = request_kind(&request);
-        let sent = self.inner.send(request).await;
-        if sent.is_ok() {
-            if let Some(kind) = kind {
-                super::record_request(kind);
-            }
+        self.inner.send(request).await?;
+        if let Some(kind) = kind {
+            super::record_request(kind);
         }
-        sent
+        Ok(())
     }
 }
 
 /// What a request awaits a reply for, or `None` for requests the node doesn't
 /// answer one-for-one (disconnects, queries, stream chunks).
-pub(crate) fn request_kind(request: &ClientRequest<'_>) -> Option<RequestKind> {
+fn request_kind(request: &ClientRequest<'_>) -> Option<RequestKind> {
     match request {
         ClientRequest::ContractOp(op) => match op {
             ContractRequest::Put { contract, .. } => Some(RequestKind::Put(*contract.key().id())),

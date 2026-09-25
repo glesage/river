@@ -5273,6 +5273,42 @@ mod tests {
         }
     }
 
+    /// `display_name`: a public name as is, a private one decrypted with the
+    /// held secret, and the sealed placeholder while that secret is missing.
+    #[test]
+    fn display_name_covers_public_private_and_missing_secret() {
+        let mut rng = rand::thread_rng();
+
+        // Public room: the sealed name is plaintext, no secret involved.
+        let public_owner_sk = SigningKey::generate(&mut rng);
+        let public_room = test_minimal_room_data(public_owner_sk.verifying_key());
+        assert_eq!(public_room.display_name(), "Default Room Name");
+
+        // Private room with the matching secret: decrypts to the plaintext name.
+        let owner_sk = SigningKey::generate(&mut rng);
+        let member_sk = SigningKey::generate(&mut rng);
+        let mut room = make_private_owner_room(&owner_sk, &member_sk);
+        let (secret, version) = room
+            .get_secret()
+            .map(|(s, v)| (*s, v))
+            .expect("private room fixture seeds a v0 secret");
+        room.room_state.configuration.configuration.display.name =
+            seal_bytes(b"Secret Room", &secret, version);
+        assert_eq!(room.display_name(), "Secret Room");
+
+        // The secret it was sealed under is not held (yet).
+        room.secrets.clear();
+        let expected_placeholder = room
+            .room_state
+            .configuration
+            .configuration
+            .display
+            .name
+            .to_string_lossy();
+        assert!(expected_placeholder.starts_with("[Encrypted:"));
+        assert_eq!(room.display_name(), expected_placeholder);
+    }
+
     /// Regression test for freenet/river#310: in a private room, an edited
     /// message must NOT briefly revert to its original text when a new
     /// message (or any other local action) is sent.

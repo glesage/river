@@ -6,7 +6,6 @@ use dioxus_free_icons::icons::fa_solid_icons::{FaArrowsRotate, FaCopy, FaXmark};
 use dioxus_free_icons::Icon;
 use ed25519_dalek::SigningKey;
 use river_core::room_state::member::{AuthorizedMember, Member};
-use std::rc::Rc;
 
 /// Fallback URL for non-browser environments or when `window.location` is
 /// unavailable. This is ONLY reached off the browser (native/test builds) or
@@ -183,7 +182,6 @@ fn InviteMemberBody(is_active: Signal<bool>, room: Memo<Option<RoomData>>) -> El
                     invitation_text: default_msg,
                     invitation_url: invite_url.clone(),
                     invitation_code: invite_code.clone(),
-                    invitation: Rc::new(invitation.clone()),
                     is_active: is_active,
                     // Clear first, so the old link can't be copied while the
                     // new one is being signed.
@@ -291,7 +289,6 @@ fn InvitationContent(
     invitation_text: String,
     invitation_url: String,
     invitation_code: String,
-    invitation: Rc<Invitation>,
     is_active: Signal<bool>,
     on_new_invitation: EventHandler<()>,
 ) -> Element {

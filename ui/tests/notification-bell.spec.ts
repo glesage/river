@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { waitForApp } from "./example-room";
 
 // The per-room notification preference (All / Mentions & replies / Muted) is
 // reached from a bell icon in the conversation header, which opens a compact
@@ -6,11 +7,6 @@ import { test, expect, Page } from "@playwright/test";
 // tests exercise the UI surface against example data.
 
 const ROOM = "Public Discussion Room";
-
-async function waitForApp(page: Page) {
-  await page.waitForSelector(".app-root", { timeout: 30_000 });
-  await expect(page.locator("aside, .app-root button")).not.toHaveCount(0);
-}
 
 async function selectRoom(page: Page, roomName: string) {
   const vp = page.viewportSize();

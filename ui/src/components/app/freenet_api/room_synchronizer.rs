@@ -1688,7 +1688,7 @@ impl RoomSynchronizer {
                 }
                 Err(e) => {
                     error!("Failed to send GET request for contract: {}", e);
-                    Err(SynchronizerError::ClientApiError(node_error_message(&e)))
+                    Err(SynchronizerError::from(e))
                 }
             }
         } else {

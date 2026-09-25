@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { waitForApp } from "./example-room";
+import { openInviteViaDmPicker } from "./invite-picker";
 
 // Every spinner in the UI is now loading dots (docs/plans/spinners-to-dots.md):
 // wave dots (`.river-flow-dot`, ten per row) wherever the rooms rail or the
@@ -60,60 +61,6 @@ async function expectSmallDots(page: Page, scope: ReturnType<Page["locator"]>, t
   expect(playing).toBe("running");
 }
 
-// Whether a member row's display text marks it as the local user (mirrors
-// `invite-via-dm-picker.spec.ts::isSelfRowText`): `member_display_parts`
-// (members.rs) gives every self row — and only the self row — a ⭐ badge.
-function isSelfRowText(text: string): boolean {
-  return text.includes("⭐");
-}
-
-/**
- * Select a room that lists the local user as a Member, open the member-info
- * modal for another member, and click "Share an invite via DM…", the way
- * `invite-via-dm-picker.spec.ts::openMemberInfo` /
- * `openPickerAndReadTitle` do. Returns whether the picker opened; when it
- * didn't (no non-self member row, or no "Share an invite via DM" entry
- * point — observer-only example data), the caller should skip.
- */
-async function openInviteViaDmPicker(page: Page): Promise<boolean> {
-  // Example-data's "Team Chat Room" lists the local user as a Member.
-  await page.getByText("Team Chat Room").first().click();
-
-  // The member list renders after the room hydrates; wait for at least one
-  // member row before iterating, so we don't race the first paint.
-  await page
-    .locator('button[title^="Member ID"]')
-    .first()
-    .waitFor({ state: "visible", timeout: 5_000 })
-    .catch(() => undefined);
-
-  const memberButtons = page.locator('button[title^="Member ID"]');
-  const count = await memberButtons.count();
-  let openedMemberInfo = false;
-  for (let i = 0; i < count; i++) {
-    const text = (await memberButtons.nth(i).textContent()) || "";
-    if (!isSelfRowText(text)) {
-      await memberButtons.nth(i).click();
-      openedMemberInfo = true;
-      break;
-    }
-  }
-  if (!openedMemberInfo) {
-    return false;
-  }
-
-  const shareInvite = page.getByRole("button", { name: /share an invite/i }).first();
-  await shareInvite.waitFor({ state: "visible", timeout: 5_000 }).catch(() => undefined);
-  if (!(await shareInvite.isVisible().catch(() => false))) {
-    return false;
-  }
-  await shareInvite.click();
-
-  const header = page.getByRole("heading", { name: /invite .+ to another room/i });
-  await expect(header).toBeVisible({ timeout: 5_000 });
-  return true;
-}
-
 for (const { label, viewport, isMobile } of [
   { label: "mobile", viewport: { width: 390, height: 844 }, isMobile: true },
   { label: "desktop", viewport: { width: 1280, height: 800 }, isMobile: false },
@@ -159,11 +106,7 @@ for (const { label, viewport, isMobile } of [
     test("the invite-via-DM picker shows small dots while it sends", async ({ page }) => {
       test.skip(isMobile, "the picker flow is covered on desktop");
 
-      const opened = await openInviteViaDmPicker(page);
-      if (!opened) {
-        test.skip(true, "no 'Share an invite via DM' entry point — example data may be observer-only");
-        return;
-      }
+      await openInviteViaDmPicker(page);
 
       await hook(page, "holdInviteSend");
       const footer = page.getByText("Sending invite…");

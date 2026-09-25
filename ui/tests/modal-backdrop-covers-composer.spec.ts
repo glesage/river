@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { waitForApp } from "./example-room";
 
 // A modal's dimming backdrop must paint over the message composer.
 //
@@ -12,11 +13,6 @@ import { test, expect, Page } from "@playwright/test";
 // `elementsFromPoint` returns the whole stack in paint order, top first, so
 // the backdrop has to come before every composer element at a point inside
 // the composer.
-
-async function waitForApp(page: Page) {
-  await page.waitForSelector(".app-root", { timeout: 30_000 });
-  await expect(page.locator("aside, .app-root button")).not.toHaveCount(0);
-}
 
 const ROOM_NAME = "Public Discussion Room";
 

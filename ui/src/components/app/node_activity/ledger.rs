@@ -78,7 +78,6 @@ pub(crate) struct Ledger {
 }
 
 impl Ledger {
-    /// A request went out.
     pub(crate) fn record(&mut self, kind: RequestKind, now: f64) -> SlotId {
         let id = self.next_id;
         self.next_id += 1;
@@ -90,13 +89,11 @@ impl Ledger {
         id
     }
 
-    /// Settle the request `settle` names, if one is outstanding.
     pub(crate) fn settle(&mut self, settle: &Settle) -> Option<SlotId> {
         let index = self.find(settle)?;
         Some(self.slots.remove(index).id)
     }
 
-    /// Whether `settle` would remove anything.
     pub(crate) fn would_settle(&self, settle: &Settle) -> bool {
         self.find(settle).is_some()
     }
@@ -127,7 +124,6 @@ impl Ledger {
         stale.into_iter().map(|s| (s.id, s.kind)).collect()
     }
 
-    /// Ids of every outstanding request.
     pub(crate) fn ids(&self) -> impl Iterator<Item = SlotId> + '_ {
         self.slots.iter().map(|s| s.id)
     }
