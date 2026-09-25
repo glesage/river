@@ -1489,7 +1489,7 @@ pub fn install_test_hooks() {
             "connecting" => SynchronizerStatus::Connecting,
             "connected" => SynchronizerStatus::Connected,
             "disconnected" => SynchronizerStatus::Disconnected,
-            "error" => SynchronizerStatus::Error("test".into()),
+            "error" => SynchronizerStatus::Error("WebSocket connection failed or timed out".into()),
             other => {
                 crate::util::debug_log(&format!("[test] unknown sync status {other:?}"));
                 return;

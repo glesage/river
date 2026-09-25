@@ -49,9 +49,9 @@ const STATUS_STATES = [
   { dot: "bg-green-500", label: "Connected" },
   { dot: "bg-yellow-500", label: "Connecting..." },
   { dot: "bg-red-500", label: "Disconnected" },
-  // SynchronizerStatus::Error renders "Error: <msg>" with the red dot; the
-  // label is matched with a prefix below rather than an exact string.
-  { dot: "bg-red-500", label: "Error:" },
+  // SynchronizerStatus::Error shows its message alone (no "Error:" prefix),
+  // so it has no fixed label. A no-sync build sits at Disconnected and never
+  // reaches it; "an error shows only its message" below covers it.
 ];
 
 // Assert the visible pill renders a coherent connection state: its dot
@@ -87,9 +87,7 @@ async function expectCoherentState(visiblePill: Locator) {
   const expectedLabels = STATUS_STATES.filter((s) => s.dot === colour).map(
     (s) => s.label
   );
-  const labelMatches = expectedLabels.some((l) =>
-    l.endsWith(":") ? labelText.startsWith(l) : labelText === l
-  );
+  const labelMatches = expectedLabels.includes(labelText);
   expect(
     labelMatches,
     `label "${labelText}" must match dot colour "${colour}" (one of ${JSON.stringify(
@@ -98,8 +96,31 @@ async function expectCoherentState(visiblePill: Locator) {
   ).toBeTruthy();
 }
 
+// Drive `SYNC_STATUS` through the example-data test hook; "error" sets
+// `SynchronizerStatus::Error("WebSocket connection failed or timed out")`.
+async function setSyncStatus(page: Page, state: string) {
+  await page.evaluate((s) => {
+    (window as any).__riverTest.setSyncStatus(s);
+  }, state);
+}
+
 test.describe("Connection status indicator on desktop (Bug #5)", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
+
+  test("an error shows only its message", async ({ page }) => {
+    await page.goto("/");
+    await waitForApp(page);
+    await setSyncStatus(page, "error");
+
+    // The red pill already says it is an error, so no "Error:" prefix and no
+    // repeated category label in front of the message.
+    const pill = page.locator(VISIBLE_PILL);
+    await expect(pill.getByTestId("connection-status-label")).toHaveText(
+      "WebSocket connection failed or timed out"
+    );
+    await expect(pill).not.toContainText("Error:");
+    await expect(pill.locator("div").first()).toHaveClass(/(^|\s)bg-red-500(\s|$)/);
+  });
 
   test("exactly one indicator is visible on initial load", async ({ page }) => {
     await page.goto("/");
