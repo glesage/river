@@ -50,8 +50,10 @@ pub(crate) fn request_kind(request: &ClientRequest<'_>) -> Option<RequestKind> {
             DelegateRequest::ApplicationMessages { key, .. } => {
                 Some(RequestKind::Delegate(key.clone()))
             }
+            // Answered with a `DelegateResponse` for the delegate's key, like
+            // any other delegate request, so it is tracked as one.
             DelegateRequest::RegisterDelegate { delegate, .. } => {
-                Some(RequestKind::Register(delegate.key().clone()))
+                Some(RequestKind::Delegate(delegate.key().clone()))
             }
             _ => None,
         },
@@ -138,6 +140,27 @@ mod tests {
             inbound: vec![],
         });
         assert_eq!(request_kind(&msg), Some(RequestKind::Delegate(key)));
+    }
+
+    /// The node answers a registration with a `DelegateResponse` for the
+    /// delegate's key, so it must be tracked exactly like a delegate message
+    /// to that key, or the reply settles the wrong request and the
+    /// registration lingers until the backstop.
+    #[test]
+    fn a_delegate_registration_is_tracked_as_a_delegate_request() {
+        use freenet_stdlib::prelude::{
+            Delegate, DelegateCode, DelegateContainer, DelegateWasmAPIVersion,
+        };
+        let code = DelegateCode::from(vec![0u8, 97, 115, 109]);
+        let params = Parameters::from(Vec::<u8>::new());
+        let delegate = Delegate::from((&code, &params));
+        let key = delegate.key().clone();
+        let register = ClientRequest::DelegateOp(DelegateRequest::RegisterDelegate {
+            delegate: DelegateContainer::Wasm(DelegateWasmAPIVersion::V1(delegate)),
+            cipher: [0; 32],
+            nonce: [0; 24],
+        });
+        assert_eq!(request_kind(&register), Some(RequestKind::Delegate(key)));
     }
 
     #[test]

@@ -86,7 +86,10 @@ for (const { label, viewport } of [
       await waitForApp(page);
       await page.waitForTimeout(1_500);
       await expect(page.locator(VISIBLE_DOTS)).toHaveCount(0);
-      await expect(await pill(page)).toHaveAttribute("aria-busy", "false");
+      const visible = await pill(page);
+      await expect(visible).toHaveAttribute("aria-busy", "false");
+      await expect(visible).not.toHaveAttribute("data-busy-reason", /.*/);
+      await expect(visible).not.toHaveAttribute("title", /.*/);
     });
 
     test("connecting shows the dots at once, inside the pill", async ({
@@ -104,7 +107,11 @@ for (const { label, viewport } of [
       const dots = page.locator(VISIBLE_DOTS);
       await expect(dots).toHaveCount(1);
       await expect(dots.locator(".pill-activity-dot")).toHaveCount(3);
-      await expect(await pill(page)).toHaveAttribute("aria-busy", "true");
+      const visible = await pill(page);
+      await expect(visible).toHaveAttribute("aria-busy", "true");
+      // Why it is busy, for devtools and as the pill's tooltip.
+      await expect(visible).toHaveAttribute("data-busy-reason", "connecting");
+      await expect(visible).toHaveAttribute("title", "Connecting to Freenet…");
 
       // No debounce: on screen within a couple of frames of the change.
       const t0 = await page.evaluate(() => (window as any).__t0);
@@ -136,6 +143,10 @@ for (const { label, viewport } of [
       await waitForApp(page);
       await hook(page, "setSyncStatus", "connected");
       await expect(page.locator(VISIBLE_DOTS)).toHaveCount(1);
+      await expect(await pill(page)).toHaveAttribute(
+        "data-busy-reason",
+        "loading-rooms"
+      );
 
       await hook(page, "setRoomsLoadState", "loaded");
       await expect(page.locator(VISIBLE_DOTS)).toHaveCount(0, {
@@ -153,6 +164,10 @@ for (const { label, viewport } of [
 
       await hook(page, "beginBackgroundRequest");
       await expect(page.locator(VISIBLE_DOTS)).toHaveCount(1);
+      await expect(await pill(page)).toHaveAttribute(
+        "data-busy-reason",
+        "requests"
+      );
       await hook(page, "endBackgroundRequest");
       await expect(page.locator(VISIBLE_DOTS)).toHaveCount(0, {
         timeout: 3_000,

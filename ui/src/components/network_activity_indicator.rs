@@ -14,7 +14,7 @@
 //!
 //! Pure pieces decide what shows, so they are unit-testable natively:
 //!
-//! - [`loading_reason`] and [`background_busy`] say whether each is busy
+//! - [`loading_reason`] and [`background_reason`] say whether each is busy
 //!   **right now**.
 //! - [`DisplayGate`] decides whether dots are **on screen**, with each
 //!   indicator's [`GateTiming`].
@@ -38,7 +38,7 @@ static ACTIVITY_GATE: GlobalSignal<DisplayGate<LoadingReason>> =
     Global::new(|| DisplayGate::new(PRIMARY_TIMING));
 
 /// Whether the pill's dots are on screen. Same writers as `ACTIVITY_GATE`.
-static BACKGROUND_GATE: GlobalSignal<DisplayGate<()>> =
+static BACKGROUND_GATE: GlobalSignal<DisplayGate<BackgroundReason>> =
     Global::new(|| DisplayGate::new(SECONDARY_TIMING));
 
 /// The debounced, held reason to draw the primary dots for, or `None`.
@@ -56,7 +56,13 @@ pub(crate) fn visible_activity() -> Option<LoadingReason> {
 /// Whether the pill's background dots are on screen. Same `read()` reasoning
 /// as [`visible_activity`].
 pub(crate) fn background_activity_visible() -> bool {
-    BACKGROUND_GATE.read().visible_reason().is_some()
+    background_activity().is_some()
+}
+
+/// Why the pill's dots are on screen, if they are. Same `read()` reasoning as
+/// [`visible_activity`].
+pub(crate) fn background_activity() -> Option<BackgroundReason> {
+    BACKGROUND_GATE.read().visible_reason()
 }
 
 /// Owns both loading decisions and their show/hide timing, and renders the
@@ -134,14 +140,13 @@ pub fn NetworkActivityIndicator() -> Element {
                 false
             }
         };
-        background_busy(&BackgroundInputs {
+        background_reason(&BackgroundInputs {
             sync_status: &status,
             sync_enabled: !cfg!(feature = "no-sync"),
             rooms_load_state,
             rooms_syncing,
             requests,
         })
-        .then_some(())
     });
 
     // Show/hide timing, driven from the memos.
@@ -348,7 +353,44 @@ pub(crate) fn loading_reason(i: &ActivityInputs) -> Option<LoadingReason> {
     })
 }
 
-/// Everything [`background_busy`] looks at, snapshotted from signals by the
+/// Why the pill's dots are showing. Variants are in priority order: when
+/// several apply, [`background_reason`] picks the first. Shown on the pill as
+/// `data-busy-reason` and as its tooltip.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum BackgroundReason {
+    Connecting,
+    Reconnecting,
+    LoadingRooms,
+    SyncingRooms,
+    /// A request to the node that nobody is waiting on is outstanding.
+    Requests,
+}
+
+impl BackgroundReason {
+    /// Value of the pill's `data-busy-reason` attribute.
+    pub(crate) fn as_attr(self) -> &'static str {
+        match self {
+            BackgroundReason::Connecting => "connecting",
+            BackgroundReason::Reconnecting => "reconnecting",
+            BackgroundReason::LoadingRooms => "loading-rooms",
+            BackgroundReason::SyncingRooms => "syncing-rooms",
+            BackgroundReason::Requests => "requests",
+        }
+    }
+
+    /// The pill's tooltip while the dots show.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            BackgroundReason::Connecting => "Connecting to Freenet…",
+            BackgroundReason::Reconnecting => "Reconnecting to Freenet…",
+            BackgroundReason::LoadingRooms => "Loading your rooms…",
+            BackgroundReason::SyncingRooms => "Syncing rooms with the network…",
+            BackgroundReason::Requests => "Waiting on the network…",
+        }
+    }
+}
+
+/// Everything [`background_reason`] looks at, snapshotted from signals by the
 /// component's memo.
 pub(crate) struct BackgroundInputs<'a> {
     pub sync_status: &'a SynchronizerStatus,
@@ -363,26 +405,35 @@ pub(crate) struct BackgroundInputs<'a> {
     pub requests: bool,
 }
 
-/// Whether background work is happening right now.
+/// Whether background work is happening right now, and which. `None` means
+/// idle.
 ///
 /// Every `SynchronizerStatus` variant is spelled out (no `_`), so a new variant
 /// is a compile error here rather than a silent "idle".
-pub(crate) fn background_busy(i: &BackgroundInputs) -> bool {
+pub(crate) fn background_reason(i: &BackgroundInputs) -> Option<BackgroundReason> {
     match i.sync_status {
-        SynchronizerStatus::Connecting => true,
+        SynchronizerStatus::Connecting => Some(BackgroundReason::Connecting),
         // In a sync build the only writer of `Disconnected` is the
         // `ConnectionLost` handler, which always arms a reconnect first.
-        SynchronizerStatus::Disconnected => i.sync_enabled,
+        SynchronizerStatus::Disconnected if i.sync_enabled => Some(BackgroundReason::Reconnecting),
+        SynchronizerStatus::Disconnected => None,
         // Sometimes a backoff reconnect is armed, sometimes it is terminal
         // ("Please refresh the page"); the red pill explains it, and the next
         // attempt goes back to `Connecting`.
-        SynchronizerStatus::Error(_) => false,
+        SynchronizerStatus::Error(_) => None,
         SynchronizerStatus::Connected => {
-            matches!(
+            if matches!(
                 i.rooms_load_state,
                 RoomsLoadState::Loading | RoomsLoadState::Migrating
-            ) || i.rooms_syncing > 0
-                || i.requests
+            ) {
+                Some(BackgroundReason::LoadingRooms)
+            } else if i.rooms_syncing > 0 {
+                Some(BackgroundReason::SyncingRooms)
+            } else if i.requests {
+                Some(BackgroundReason::Requests)
+            } else {
+                None
+            }
         }
     }
 }
@@ -741,26 +792,28 @@ mod tests {
 
     #[test]
     fn a_quiet_connected_client_is_not_busy() {
-        assert!(!background_busy(&quiet(&CONNECTED, true)));
+        assert_eq!(background_reason(&quiet(&CONNECTED, true)), None);
     }
 
     #[test]
     fn connecting_and_reconnecting_are_background_work() {
-        assert!(background_busy(&quiet(
-            &SynchronizerStatus::Connecting,
-            true
-        )));
-        assert!(background_busy(&quiet(
-            &SynchronizerStatus::Disconnected,
-            true
-        )));
-        assert!(
-            !background_busy(&quiet(&SynchronizerStatus::Disconnected, false)),
+        assert_eq!(
+            background_reason(&quiet(&SynchronizerStatus::Connecting, true)),
+            Some(BackgroundReason::Connecting)
+        );
+        assert_eq!(
+            background_reason(&quiet(&SynchronizerStatus::Disconnected, true)),
+            Some(BackgroundReason::Reconnecting)
+        );
+        assert_eq!(
+            background_reason(&quiet(&SynchronizerStatus::Disconnected, false)),
+            None,
             "a no-sync build is Disconnected for good"
         );
         let error = SynchronizerStatus::Error("x".to_string());
-        assert!(
-            !background_busy(&quiet(&error, true)),
+        assert_eq!(
+            background_reason(&quiet(&error, true)),
+            None,
             "the red pill explains it"
         );
     }
@@ -770,27 +823,61 @@ mod tests {
         for state in [RoomsLoadState::Loading, RoomsLoadState::Migrating] {
             let i = BackgroundInputs {
                 rooms_load_state: state,
+                rooms_syncing: 1,
+                requests: true,
                 ..quiet(&CONNECTED, true)
             };
-            assert!(background_busy(&i), "{state:?}");
+            assert_eq!(
+                background_reason(&i),
+                Some(BackgroundReason::LoadingRooms),
+                "{state:?}"
+            );
         }
         for state in [RoomsLoadState::LoadFailed, RoomsLoadState::Loaded] {
             let i = BackgroundInputs {
                 rooms_load_state: state,
                 ..quiet(&CONNECTED, true)
             };
-            assert!(!background_busy(&i), "{state:?}");
+            assert_eq!(background_reason(&i), None, "{state:?}");
         }
         let syncing = BackgroundInputs {
             rooms_syncing: 2,
+            requests: true,
             ..quiet(&CONNECTED, true)
         };
-        assert!(background_busy(&syncing));
+        assert_eq!(
+            background_reason(&syncing),
+            Some(BackgroundReason::SyncingRooms)
+        );
         let requests = BackgroundInputs {
             requests: true,
             ..quiet(&CONNECTED, true)
         };
-        assert!(background_busy(&requests));
+        assert_eq!(
+            background_reason(&requests),
+            Some(BackgroundReason::Requests)
+        );
+    }
+
+    #[test]
+    fn background_reasons_have_distinct_kebab_case_attrs_and_labels() {
+        let all = [
+            BackgroundReason::Connecting,
+            BackgroundReason::Reconnecting,
+            BackgroundReason::LoadingRooms,
+            BackgroundReason::SyncingRooms,
+            BackgroundReason::Requests,
+        ];
+        let mut seen = std::collections::HashSet::new();
+        for r in all {
+            let a = r.as_attr();
+            assert!(seen.insert(a), "duplicate data-busy-reason {a:?}");
+            assert!(
+                a.chars().all(|c| c.is_ascii_lowercase() || c == '-'),
+                "{a:?}"
+            );
+            assert!(!r.label().is_empty(), "{r:?} has no label");
+        }
     }
 
     // ---- DisplayGate ----------------------------------------------------
@@ -988,16 +1075,17 @@ mod tests {
     /// and still held for the 1 s minimum.
     #[test]
     fn the_secondary_gate_shows_at_once_and_holds_a_second() {
-        let g = DisplayGate::<()>::new(SECONDARY_TIMING);
-        let (g, wake) = g.on_reason(Some(()), 100.0);
+        let busy = Some(BackgroundReason::Requests);
+        let g = DisplayGate::<BackgroundReason>::new(SECONDARY_TIMING);
+        let (g, wake) = g.on_reason(busy, 100.0);
         assert_eq!(g.phase, GatePhase::Shown { shown_at: 100.0 });
         assert_eq!(wake, None, "nothing to wait for");
-        assert_eq!(g.visible_reason(), Some(()));
+        assert_eq!(g.visible_reason(), busy);
 
         let (g, wake) = g.on_reason(None, 150.0);
         assert_eq!(g.phase, GatePhase::Holding { shown_at: 100.0 });
         assert_eq!(wake, Some(950.0));
-        assert_eq!(g.on_tick(1_099.0).visible_reason(), Some(()));
+        assert_eq!(g.on_tick(1_099.0).visible_reason(), busy);
         assert_eq!(g.on_tick(1_100.0).visible_reason(), None);
     }
 

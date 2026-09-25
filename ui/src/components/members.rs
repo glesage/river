@@ -76,14 +76,17 @@ pub fn ConnectionStatusIndicator() -> Element {
     };
 
     // Background work (connecting, loading or re-syncing rooms, refreshes,
-    // delegate saves) shows as small dots after the label.
-    let busy = crate::components::network_activity_indicator::background_activity_visible();
+    // delegate saves) shows as small dots after the label, with the reason as
+    // a tooltip and in `data-busy-reason`.
+    let busy = crate::components::network_activity_indicator::background_activity();
 
     rsx! {
         div { class: "px-3 pb-3 flex-shrink-0",
             div {
                 "aria-label": "WebSocket connection status",
-                "aria-busy": if busy { "true" } else { "false" },
+                "aria-busy": if busy.is_some() { "true" } else { "false" },
+                "data-busy-reason": busy.map(|r| r.as_attr()),
+                title: busy.map(|r| r.label()),
                 "data-testid": "connection-status-indicator",
                 class: "w-full px-3 py-1.5 rounded-full flex items-center justify-center text-xs font-medium {pill_classes}",
                 div { class: "w-2 h-2 rounded-full mr-2 {dot_classes}" }

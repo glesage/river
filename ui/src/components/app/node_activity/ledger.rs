@@ -23,10 +23,9 @@ pub(crate) enum RequestKind {
     Put(ContractInstanceId),
     Get(ContractInstanceId),
     Subscribe(ContractInstanceId),
-    /// `DelegateRequest::ApplicationMessages`.
+    /// Any delegate request, including `RegisterDelegate`: the node answers
+    /// every one with a `DelegateResponse` for the delegate's key.
     Delegate(DelegateKey),
-    /// `DelegateRequest::RegisterDelegate`, answered by `HostResponse::Ok`.
-    Register(DelegateKey),
 }
 
 /// A kind without its key, for errors that name the operation but not what
@@ -38,7 +37,6 @@ pub(crate) enum Family {
     Get,
     Subscribe,
     Delegate,
-    Register,
 }
 
 impl RequestKind {
@@ -49,7 +47,6 @@ impl RequestKind {
             RequestKind::Get(_) => Family::Get,
             RequestKind::Subscribe(_) => Family::Subscribe,
             RequestKind::Delegate(_) => Family::Delegate,
-            RequestKind::Register(_) => Family::Register,
         }
     }
 }
@@ -167,7 +164,8 @@ pub(crate) fn settle_for(result: &Result<HostResponse, ClientError>) -> Option<S
         Ok(HostResponse::DelegateResponse { key, .. }) => {
             Some(Settle::Exact(RequestKind::Delegate(key.clone())))
         }
-        Ok(HostResponse::Ok) => Some(Settle::OldestOf(Family::Register)),
+        // `HostResponse::Ok` answers nothing River tracks: even
+        // `RegisterDelegate` is answered with a `DelegateResponse`.
         Ok(_) => None,
         Err(err) => settle_for_error(err),
     }
@@ -187,10 +185,9 @@ fn settle_for_error(err: &ClientError) -> Option<Settle> {
             _ => Some(Settle::Oldest),
         },
         ErrorKind::RequestError(RequestError::DelegateError(error)) => match error {
-            DelegateError::RegisterError(key) => {
-                Some(Settle::Exact(RequestKind::Register(key.clone())))
-            }
-            DelegateError::Missing(key) | DelegateError::MissingSecret { key, .. } => {
+            DelegateError::RegisterError(key)
+            | DelegateError::Missing(key)
+            | DelegateError::MissingSecret { key, .. } => {
                 Some(Settle::Exact(RequestKind::Delegate(key.clone())))
             }
             _ => Some(Settle::OldestOf(Family::Delegate)),
@@ -198,7 +195,9 @@ fn settle_for_error(err: &ClientError) -> Option<Settle> {
         ErrorKind::RequestError(RequestError::Timeout) => Some(Settle::Oldest),
         // freenet-core's wording: "UPDATE failed: …", "PUT failed: …",
         // "GET failed: …", "subscribe failed: …" (the op_ctx_task drivers).
-        // If it changes, these fall back to the oldest request, then to the
+        // Before 0.2.136 a delegate failure also arrives here, untyped, as
+        // the executor's message, which names the delegate. If the wording
+        // changes, these fall back to the oldest request, then to the
         // backstop — never to a hang.
         ErrorKind::OperationError { cause } => {
             let cause = cause.to_ascii_uppercase();
@@ -210,7 +209,8 @@ fn settle_for_error(err: &ClientError) -> Option<Settle> {
             ]
             .into_iter()
             .find(|(op, _)| cause.starts_with(op))
-            .map(|(_, family)| family);
+            .map(|(_, family)| family)
+            .or_else(|| cause.contains("DELEGATE").then_some(Family::Delegate));
             Some(family.map_or(Settle::Oldest, Settle::OldestOf))
         }
         ErrorKind::FailedOperation
@@ -348,7 +348,7 @@ mod tests {
     }
 
     #[test]
-    fn delegate_and_register_replies() {
+    fn delegate_replies_name_their_delegate() {
         let reply = Ok(HostResponse::DelegateResponse {
             key: d(7),
             values: vec![],
@@ -359,8 +359,32 @@ mod tests {
         );
         assert_eq!(
             settle_for(&Ok(HostResponse::Ok)),
-            Some(Settle::OldestOf(Family::Register))
+            None,
+            "nothing River tracks is answered with a bare Ok"
         );
+    }
+
+    /// Regression: the node answers `RegisterDelegate` with a
+    /// `DelegateResponse`, not `HostResponse::Ok`. Recorded as its own kind,
+    /// its reply settled the NEXT delegate request instead, and its own
+    /// record lingered for the whole backstop after every connect and every
+    /// return to the tab, keeping the pill's dots on.
+    #[test]
+    fn a_registration_and_the_requests_after_it_are_all_settled() {
+        let mut l = Ledger::default();
+        // `set_up_chat_delegate`: register, then list, then a GET.
+        for _ in 0..3 {
+            l.record(RequestKind::Delegate(d(1)), 0.0);
+        }
+        let reply = Ok(HostResponse::DelegateResponse {
+            key: d(1),
+            values: vec![],
+        });
+        for _ in 0..3 {
+            let settle = settle_for(&reply).unwrap();
+            assert!(l.settle(&settle).is_some());
+        }
+        assert!(l.is_empty(), "three requests, three replies, nothing left");
     }
 
     /// A notification answers no request: it is the node pushing a change.
@@ -422,7 +446,7 @@ mod tests {
         )));
         assert_eq!(
             settle_for(&register),
-            Some(Settle::Exact(RequestKind::Register(d(9))))
+            Some(Settle::Exact(RequestKind::Delegate(d(9))))
         );
         let execution = error(ErrorKind::RequestError(RequestError::DelegateError(
             DelegateError::ExecutionError("boom".into()),
@@ -451,6 +475,11 @@ mod tests {
         assert_eq!(
             settle_for(&op_error("something else broke")),
             Some(Settle::Oldest)
+        );
+        // freenet-core before 0.2.136: an untyped delegate failure.
+        assert_eq!(
+            settle_for(&op_error("executor error: delegate not found in store")),
+            Some(Settle::OldestOf(Family::Delegate))
         );
     }
 
