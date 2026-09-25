@@ -12,6 +12,7 @@ use crate::components::app::notifications::{
 use crate::components::app::receive_times::record_receive_times;
 use crate::components::app::sync_info::{now_ms, RoomSyncStatus, SYNC_INFO};
 use crate::components::app::{CURRENT_ROOM, PENDING_INVITES, ROOMS, WEB_API};
+use crate::components::room_list::receive_invitation_modal::fail_join;
 use crate::constants::ROOM_CONTRACT_WASM;
 use crate::invites::PendingRoomStatus;
 use crate::util::{owner_vk_to_contract_key, strip_upgrade_pointer, to_cbor_vec};
@@ -747,11 +748,11 @@ impl RoomSynchronizer {
                                 MemberId::from(owner_vk),
                                 e
                             );
-                            // Update pending invite status to error
-                            PENDING_INVITES.with_mut(|pending| {
-                                if let Some(join) = pending.map.get_mut(&owner_vk) {
-                                    join.status = PendingRoomStatus::Error(node_error_message(&e));
-                                }
+                            // Report the failure in an error toast the user
+                            // can retry from.
+                            let reason = node_error_message(&e);
+                            crate::util::defer(move || {
+                                fail_join(owner_vk, reason);
                             });
                         }
                     }

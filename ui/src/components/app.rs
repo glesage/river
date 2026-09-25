@@ -22,10 +22,11 @@ use crate::components::room_list::notification_modal::NotificationModal;
 use crate::components::room_list::receive_invitation_modal::{
     accept_invitation, adopt_and_purge_legacy_persisted_invitation_once,
     clear_invitation_from_storage, decide_recovered_invitation, is_invitation_processed,
-    load_invitation_from_storage, load_invitation_nickname_from_storage,
-    save_invitation_to_storage, take_resume_once, ReceiveInvitationModal,
-    RecoveredInvitationAction, PRESENT_INVITATION_REQUEST,
+    join_attempted, join_in_progress, load_invitation_from_storage,
+    load_invitation_nickname_from_storage, save_invitation_to_storage, take_resume_once,
+    ReceiveInvitationModal, RecoveredInvitationAction, PRESENT_INVITATION_REQUEST,
 };
+use crate::components::toast::ToastHost;
 use crate::invites::PendingInvites;
 use crate::room_data::{CurrentRoom, Rooms};
 use dioxus::document::{Link, Stylesheet};
@@ -199,6 +200,11 @@ pub fn App() -> Element {
                 let fingerprint = invitation.to_encoded_string();
                 if is_invitation_processed(&fingerprint) {
                     debug!("Intercepted invite click already processed; ignoring");
+                } else if join_in_progress(&invitation.room) {
+                    // Accept closed the modal and the join is running; the
+                    // loading dots already show it. (A FAILED join does
+                    // reopen: the click is an explicit request to try again.)
+                    debug!("Intercepted invite click while its join is running; ignoring");
                 } else {
                     info!("Intercepted invite link click: opening modal in place");
                     save_invitation_to_storage(&invitation);
@@ -271,6 +277,12 @@ pub fn App() -> Element {
                             debug!(
                                 "Skipping invitation in URL: already accepted or dismissed in this browser"
                             );
+                        } else if join_attempted(&invitation.room) {
+                            // This block runs on every `App` render. Accept
+                            // closed the modal and the join is running, or it
+                            // failed and its error toast offers Retry: either
+                            // way, don't pop the modal back up on its own.
+                            debug!("Skipping invitation in URL: its join was already attempted");
                         } else {
                             info!("Received invitation from URL: {:?}", invitation);
                             save_invitation_to_storage(&invitation);
@@ -368,6 +380,15 @@ pub fn App() -> Element {
             );
             return;
         }
+        if join_in_progress(&inv.room) {
+            // Already accepted, and the loading dots show the join. A FAILED
+            // join does reopen: this is an explicit request to try again.
+            debug!(
+                "In-app invitation accept ignored: join already running for room {:?}",
+                MemberId::from(inv.room)
+            );
+            return;
+        }
         info!(
             "In-app invitation accept: opening modal for room {:?}",
             MemberId::from(inv.room)
@@ -387,20 +408,27 @@ pub fn App() -> Element {
     // Three cases, in priority order:
     //   1. A nickname is ALSO saved → the user already clicked Accept and the
     //      subscription was still in flight at reload. Auto-resume with that
-    //      nickname (#218) so the "Subscribing…" indicator returns instead of
-    //      a blank UI / re-prompt. The saved-nickname signal — not the
-    //      processed flag — is what drives this: `accept_invitation` does NOT
-    //      mark the invitation processed (the mark happens only at terminal
-    //      success in `render_subscribed_state`, or on dismiss), so a
-    //      mid-flight reload sees `is_invitation_processed == false`.
+    //      nickname (#218) so the join's loading dots return instead of a
+    //      re-prompt. The saved-nickname signal — not the processed flag — is
+    //      what drives this: `accept_invitation` does NOT mark the invitation
+    //      processed (the mark happens only at terminal success in
+    //      `finish_join`, or on dismiss), so a mid-flight reload sees
+    //      `is_invitation_processed == false`.
     //      Storage-still-present + nickname-present is the authoritative
     //      "accepted but join not yet finished" signal here.
     //   2. No nickname, but the invitation was already acted on in this
     //      browser → discard (the user accepted-then-left, or dismissed).
     //   3. No nickname, not yet processed → the user reloaded before deciding;
     //      re-open the modal at the nickname prompt.
+    //
+    // None of them applies while a join for the invitation has already been
+    // attempted in this page load: it is running (and the dots show it), or it
+    // failed and its error toast offers Retry. Re-prompting or re-accepting
+    // then would reopen the modal Accept just closed, or restart the join.
     if !found_invitation {
-        if let Some(invitation) = load_invitation_from_storage() {
+        if let Some(invitation) =
+            load_invitation_from_storage().filter(|invitation| !join_attempted(&invitation.room))
+        {
             let encoded = invitation.to_encoded_string();
             let action = decide_recovered_invitation(
                 load_invitation_nickname_from_storage(&encoded),
@@ -413,13 +441,13 @@ pub fn App() -> Element {
                     // render would re-send `AcceptInvitation` and reset the
                     // pending status, looping.
                     if take_resume_once(&invitation_resume_fired) {
-                        // Mount the modal first, then defer the accept so the
-                        // `PENDING_INVITES` mutation and channel send happen in
-                        // a clean execution context (per the Dioxus signal-
-                        // safety rules) rather than mid-render of the `App`
-                        // component body.
+                        // No modal: the join's loading dots and its outcome
+                        // toast are the whole UI once Accept has been clicked.
+                        // Defer the accept so the `PENDING_INVITES` mutation
+                        // and channel send happen in a clean execution context
+                        // (per the Dioxus signal-safety rules) rather than
+                        // mid-render of the `App` component body.
                         info!("Recovered pending invitation with saved nickname; auto-resuming subscription");
-                        receive_invitation.set(Some(invitation.clone()));
                         crate::util::defer(move || {
                             accept_invitation(invitation, nickname);
                         });
@@ -598,6 +626,8 @@ pub fn App() -> Element {
         ReceiveInvitationModal {
             invitation: receive_invitation
         }
+        // After every modal, so it paints above them.
+        ToastHost {}
         DocumentTitleUpdater {}
     }
 }
@@ -677,6 +707,50 @@ mod tests {
     // effect runs inside Dioxus's render loop and isn't unit-testable
     // without the runtime.
     // -----------------------------------------------------------------
+    /// Accept closes the invitation modal, and the openers in `App`'s body
+    /// run on every render. The automatic ones (the URL, the in-page
+    /// recovery) must skip an invitation whose join was already attempted:
+    /// running, where the loading dots show it, or failed, where its error
+    /// toast offers Retry. Otherwise the modal Accept just closed pops back up
+    /// (the gateway iframe, where no nickname is saved, takes `Prompt`) or the
+    /// join silently restarts (`Resume`). The explicit ones (a link click, a
+    /// DM card) skip only a RUNNING join, so a failed one can be tried again.
+    #[test]
+    fn invitation_openers_skip_a_join_already_attempted() {
+        let src = crate::util::source_scan::strip_line_comments(
+            crate::util::source_scan::production_only(include_str!("app.rs")),
+        );
+        let url = &src[src.find("params.get(\"invitation\")").expect("URL opener")..];
+        let url = &url[..url
+            .find("found_invitation = true;")
+            .expect("URL opener end")];
+        assert!(
+            url.contains("join_attempted(&invitation.room)"),
+            "the URL opener must skip an attempted join"
+        );
+        // Whitespace-insensitive: rustfmt reflows the chain as it likes.
+        let squashed: String = src.split_whitespace().collect();
+        assert!(
+            squashed.contains(
+                "load_invitation_from_storage().filter(|invitation|!join_attempted(&invitation.room))"
+            ),
+            "the recovery (Resume / Prompt) must skip an attempted join"
+        );
+        let resume = &src[src
+            .find("RecoveredInvitationAction::Resume { nickname } =>")
+            .unwrap()..];
+        let resume = &resume[..resume.find("RecoveredInvitationAction::Discard").unwrap()];
+        assert!(
+            !resume.contains("receive_invitation.set("),
+            "Resume must not reopen the modal: Accept already closed it"
+        );
+        assert_eq!(
+            src.matches("join_in_progress(&").count(),
+            2,
+            "the click-interceptor and DM-card bridges skip only a running join"
+        );
+    }
+
     #[test]
     fn dm_accept_bridge_gates_on_is_invitation_processed() {
         let src = include_str!("app.rs");

@@ -552,6 +552,17 @@ impl RoomData {
         )
     }
 
+    /// The room's name, decrypted when it is private. Falls back to the
+    /// sealed value's placeholder ("[Encrypted: …]") while the room's secret
+    /// is not available yet.
+    pub fn display_name(&self) -> String {
+        let sealed = &self.room_state.configuration.configuration.display.name;
+        match crate::util::ecies::unseal_bytes_with_secrets(sealed, &self.secrets) {
+            Ok(bytes) => String::from_utf8_lossy(&bytes).to_string(),
+            Err(_) => sealed.to_string_lossy(),
+        }
+    }
+
     /// Get the current (latest) secret for encryption/decryption
     pub fn get_secret(&self) -> Option<(&[u8; 32], u32)> {
         self.current_secret_version

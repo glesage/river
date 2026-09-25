@@ -396,3 +396,39 @@
         animation-delay: calc(var(--i, 0) * 0.2s);
     }
 }
+
+/* Toast (toast.rs): one at a time, centred at the top of the UI. Fixed to the
+ * window, above every modal (z-50) whatever the DOM order, and clear of the
+ * phone's notch and status bar. At the top it never covers the composer or
+ * the loading dots docked above it. `width: max-content` capped by
+ * `max-width` lets a long message wrap instead of running off a phone. */
+.river-toast {
+    position: fixed;
+    top: max(1rem, env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    width: max-content;
+    max-width: calc(100vw - 2rem);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    animation: river-toast-in 150ms ease-out;
+}
+
+/* Slides down from the top edge as it fades in. */
+@keyframes river-toast-in {
+    from { opacity: 0; transform: translate(-50%, -8px); }
+    to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes river-toast-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .river-toast {
+        animation: river-toast-fade-in 150ms ease-out;
+    }
+}

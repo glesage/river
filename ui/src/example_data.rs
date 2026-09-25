@@ -1618,6 +1618,99 @@ pub fn install_test_hooks() {
                 )));
             }) as Box<dyn FnMut()>),
         );
+
+        // Toasts (toast.rs). `showToast(message, withAction?)`: with a truthy
+        // second argument the toast carries a "Do it" action, whose clicks
+        // are counted in `window.__riverTestToastActions`.
+        // `showErrorToast(message)` shows one that stays until closed.
+        fn count_toast_action() {
+            if let Some(window) = web_sys::window() {
+                let key = JsValue::from_str("__riverTestToastActions");
+                let clicks = js_sys::Reflect::get(&window, &key)
+                    .ok()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                let _ = js_sys::Reflect::set(&window, &key, &JsValue::from_f64(clicks + 1.0));
+            }
+        }
+        expose(
+            &hooks,
+            "showToast",
+            Closure::wrap(Box::new(move |message: JsValue, with_action: JsValue| {
+                let action = with_action.is_truthy().then(|| {
+                    crate::components::toast::ToastAction::new("Do it", count_toast_action)
+                });
+                crate::components::toast::show_toast(
+                    message.as_string().unwrap_or_default(),
+                    action,
+                );
+            }) as Box<dyn FnMut(JsValue, JsValue)>),
+        );
+        expose(
+            &hooks,
+            "showErrorToast",
+            Closure::wrap(Box::new(move |message: JsValue| {
+                crate::components::toast::show_error_toast(
+                    message.as_string().unwrap_or_default(),
+                    None,
+                );
+            }) as Box<dyn FnMut(JsValue)>),
+        );
+
+        // The join flow without a node. `presentTestInvitation()` opens the
+        // invitation modal for a room the example data doesn't have, the way a
+        // DM card's Accept does. A no-sync build has no synchronizer, so an
+        // accepted join stays pending and its loading dots can be watched;
+        // `finishTestJoin()` / `failTestJoin()` then end it the way the
+        // synchronizer's GET handling would.
+        fn test_invitation_owner() -> SigningKey {
+            SigningKey::from_bytes(&[0xC3; 32])
+        }
+        expose(
+            &hooks,
+            "presentTestInvitation",
+            Closure::wrap(Box::new(move || {
+                use river_core::room_state::member::{AuthorizedMember, Member};
+                let owner = test_invitation_owner();
+                let invitee_signing_key = SigningKey::from_bytes(&[0xC4; 32]);
+                let member = Member {
+                    owner_member_id: owner.verifying_key().into(),
+                    invited_by: owner.verifying_key().into(),
+                    member_vk: invitee_signing_key.verifying_key(),
+                };
+                crate::components::room_list::receive_invitation_modal::present_invitation(
+                    crate::components::members::Invitation {
+                        room: owner.verifying_key(),
+                        invitee_signing_key,
+                        invitee: AuthorizedMember::new(member, &owner),
+                        room_secrets: Vec::new(),
+                    },
+                );
+            }) as Box<dyn FnMut()>),
+        );
+        expose(
+            &hooks,
+            "finishTestJoin",
+            Closure::wrap(Box::new(move || {
+                crate::util::defer(|| {
+                    crate::components::room_list::receive_invitation_modal::finish_join(
+                        test_invitation_owner().verifying_key(),
+                    );
+                });
+            }) as Box<dyn FnMut()>),
+        );
+        expose(
+            &hooks,
+            "failTestJoin",
+            Closure::wrap(Box::new(move || {
+                crate::util::defer(|| {
+                    crate::components::room_list::receive_invitation_modal::fail_join(
+                        test_invitation_owner().verifying_key(),
+                        "room is at capacity (1/1 members)".to_string(),
+                    );
+                });
+            }) as Box<dyn FnMut()>),
+        );
     }
 
     let _ = js_sys::Reflect::set(&window, &JsValue::from_str("__riverTest"), &hooks);

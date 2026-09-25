@@ -92,3 +92,66 @@ test.describe("Invite-member modal guidance copy", () => {
     expect(recBox!.y).toBeLessThan(warnBox!.y);
   });
 });
+
+// The modal used to open on a red "Modal closed" error with "Try Again" (left
+// over from generating while it was closed) and had a "Generating
+// invitation..." spinner. Neither may ever be on screen now: while the
+// invitation is signed the body holds only the big loading dots, and only if
+// the wait passes 500ms.
+test.describe("Invite-member modal while the invitation is created", () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  async function watchForText(page: Page, needles: string[]) {
+    await page.evaluate((needles) => {
+      const w = window as any;
+      w.__seenInviteText = [];
+      const check = () => {
+        const text = document.body.innerText;
+        for (const needle of needles) {
+          if (text.includes(needle) && !w.__seenInviteText.includes(needle)) {
+            w.__seenInviteText.push(needle);
+          }
+        }
+      };
+      new MutationObserver(check).observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+    }, needles);
+  }
+
+  const STALE = ["Modal closed", "Try Again", "Generating invitation"];
+
+  test("opening it never shows a stale error or a spinner", async ({ page }) => {
+    await page.goto("/");
+    await waitForApp(page);
+    await watchForText(page, STALE);
+
+    await openInviteModal(page);
+    // Close and reopen: the second open must start clean too.
+    await page.getByTestId("invite-member-close-button").click();
+    await expect(page.getByTestId("invite-member-modal")).toHaveCount(0);
+    await page.getByTestId("invite-member-button").click();
+    await expect(page.getByTestId("invite-link-input")).not.toHaveValue("", {
+      timeout: 10_000,
+    });
+
+    expect(await page.evaluate(() => (window as any).__seenInviteText)).toEqual([]);
+  });
+
+  test("New Invitation replaces the link without a stale error", async ({ page }) => {
+    await page.goto("/");
+    await waitForApp(page);
+    await openInviteModal(page);
+    const first = await page.getByTestId("invite-link-input").inputValue();
+
+    await watchForText(page, STALE);
+    await page.getByTestId("invite-new-invitation-button").click();
+    await expect(page.getByTestId("invite-link-input")).not.toHaveValue(first, {
+      timeout: 10_000,
+    });
+    await expect(page.getByTestId("invite-link-input")).not.toHaveValue("");
+    expect(await page.evaluate(() => (window as any).__seenInviteText)).toEqual([]);
+  });
+});

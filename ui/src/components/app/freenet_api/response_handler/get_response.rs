@@ -9,6 +9,7 @@ use crate::components::app::freenet_api::room_synchronizer::RoomSynchronizer;
 use crate::components::app::notifications::mark_initial_sync_complete;
 use crate::components::app::sync_info::{RoomSyncStatus, SYNC_INFO};
 use crate::components::app::{CURRENT_ROOM, PENDING_INVITES, ROOMS, WEB_API};
+use crate::components::room_list::receive_invitation_modal::{fail_join, finish_join};
 use crate::constants::ROOM_CONTRACT_WASM;
 use crate::invites::PendingRoomStatus;
 use crate::room_data::RoomData;
@@ -253,16 +254,11 @@ pub async fn handle_get_response(
                     });
                 });
 
-                // Clear the now-moot pending invite. Mark it Subscribed so the
-                // modal's terminal-success path (`render_subscribed_state`)
-                // closes it and persistently dismisses the invitation, matching
-                // a normal completed accept.
+                // Finish the now-moot pending invite exactly like a completed
+                // accept: `finish_join` clears it, persistently dismisses the
+                // invitation and confirms with a toast.
                 crate::util::defer(move || {
-                    PENDING_INVITES.with_mut(|pending| {
-                        if let Some(join) = pending.map.get_mut(&owner_vk) {
-                            join.status = PendingRoomStatus::Subscribed;
-                        }
-                    });
+                    finish_join(owner_vk);
                 });
 
                 return Ok(());
@@ -403,15 +399,10 @@ pub async fn handle_get_response(
                             .write()
                             .update_sync_status(&owner_vk, RoomSyncStatus::Error(err_msg.clone()));
                     });
-                    // Surface failure on PENDING_INVITES so the
-                    // existing modal can report it and the user can
-                    // dismiss the join — same shape as a PUT failure.
+                    // Report the failure in an error toast the user can
+                    // retry from.
                     crate::util::defer(move || {
-                        PENDING_INVITES.with_mut(|pending| {
-                            if let Some(join) = pending.map.get_mut(&owner_vk) {
-                                join.status = PendingRoomStatus::Error(err.to_string());
-                            }
-                        });
+                        fail_join(owner_vk, err.to_string());
                     });
                     return Ok(());
                 }
@@ -772,21 +763,15 @@ pub async fn handle_get_response(
                     mark_initial_sync_complete(&owner_vk);
                 });
 
-                // Close the invitation modal by updating PENDING_INVITES directly.
-                // PENDING_INVITES is a GlobalSignal — writing to it re-renders the modal.
+                // The join is done: open the room, and let `finish_join` clear
+                // the pending invite, persistently dismiss the invitation and
+                // confirm with a toast. Runs after the deferred ROOMS insert
+                // above (`defer` is FIFO), so the toast can name the room.
                 crate::util::defer(move || {
-                    PENDING_INVITES.with_mut(|pending| {
-                        if let Some(join) = pending.map.get_mut(&owner_vk) {
-                            join.status = PendingRoomStatus::Subscribed;
-                            info!(
-                                "Marked invitation as Subscribed for {:?}",
-                                MemberId::from(owner_vk)
-                            );
-                        }
-                    });
                     CURRENT_ROOM.with_mut(|current_room| {
                         current_room.owner_key = Some(owner_vk);
                     });
+                    finish_join(owner_vk);
                 });
 
                 {

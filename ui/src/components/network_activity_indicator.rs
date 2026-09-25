@@ -6,7 +6,10 @@
 //!   room, saving a setting), and only once that wait passes 500 ms. With a
 //!   room open they dock just above the composer and the history gains bottom
 //!   padding so they never cover the last message; with no room open they sit
-//!   in the no-room screen. Never `position: fixed`.
+//!   in the no-room screen. A modal waiting on its own node call (the invite
+//!   modal, while its invitation is signed) draws them itself with
+//!   [`ModalActivityDots`], and the chat's copy steps aside meanwhile. Never
+//!   `position: fixed`.
 //! - **Secondary**: three small dots inside the connection pill, shown the
 //!   moment any background work starts (connecting, loading or re-syncing
 //!   rooms, refreshes, delegate saves, anything still travelling through
@@ -206,13 +209,46 @@ fn drive_gate<R: Copy + PartialEq + 'static>(
     }
 }
 
+/// How many [`ModalActivityDots`] are mounted. While any is, the chat's
+/// [`NetworkActivityDots`] draw nothing, so the dots are on screen once,
+/// inside the modal the user is looking at: the chat's copy would sit dimmed
+/// behind the modal's backdrop, and on mobile the chat isn't on screen at all.
+/// Written only inside `crate::util::defer`.
+static DOTS_IN_MODAL: GlobalSignal<u32> = Global::new(|| 0);
+
 /// The primary dots, drawn only while [`visible_activity`] says so. `docked`
 /// pins them to the bottom-centre of the nearest positioned ancestor (the
 /// message history, directly above the composer); otherwise they sit in the
 /// flow. Render at most one at a time: tests and assistive tech address them
-/// by `data-testid`.
+/// by `data-testid`. They step aside while a modal shows its own
+/// ([`ModalActivityDots`]).
 #[component]
 pub fn NetworkActivityDots(docked: bool) -> Element {
+    // Same `read()` reasoning as `visible_activity`.
+    if *DOTS_IN_MODAL.read() > 0 {
+        return rsx! {};
+    }
+    activity_dots(docked)
+}
+
+/// The primary dots inside a modal, in the flow, for a modal whose own wait
+/// they show (the invite modal while its invitation is signed). While mounted,
+/// the chat's copy is hidden.
+#[component]
+pub fn ModalActivityDots() -> Element {
+    use_hook(|| {
+        crate::util::defer(|| *DOTS_IN_MODAL.write() += 1);
+    });
+    use_drop(|| {
+        crate::util::defer(|| {
+            let mut count = DOTS_IN_MODAL.write();
+            *count = count.saturating_sub(1);
+        });
+    });
+    activity_dots(false)
+}
+
+fn activity_dots(docked: bool) -> Element {
     // Same `read()` reasoning as `visible_activity`.
     let gate = *ACTIVITY_GATE.read();
     let Some(reason) = gate.visible_reason() else {

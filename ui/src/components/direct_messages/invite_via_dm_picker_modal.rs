@@ -40,6 +40,7 @@ use crate::components::direct_messages::{
     INVITE_VIA_DM_PICKER_INFLIGHT,
 };
 use crate::components::members::{collect_invitation_secrets, Invitation};
+use crate::components::toast::show_toast;
 use crate::util::ecies::unseal_bytes_with_secrets;
 use dioxus::logger::tracing::{error, info, warn};
 use dioxus::prelude::*;
@@ -89,7 +90,7 @@ pub fn InviteViaDmPickerModal() -> Element {
     // and panic.
     //
     // Per-open scratch state: the selected target room, the optional
-    // personal message, and the inline error / success-banner strings.
+    // personal message, and the inline error string. Success is a toast.
     // The picker is mounted unconditionally in `app.rs` and never
     // unmounts, so these `use_signal`s are NOT dropped when the picker
     // closes — they persist across open/close cycles.
@@ -99,11 +100,10 @@ pub fn InviteViaDmPickerModal() -> Element {
     let mut selected_room: Signal<Option<(MemberId, VerifyingKey)>> = use_signal(|| None);
     let mut personal_message = use_signal(String::new);
     let mut send_error: Signal<Option<String>> = use_signal(|| None);
-    let mut last_success_label: Signal<Option<String>> = use_signal(|| None);
 
     // Reset the scratch state on every `INVITE_VIA_DM_PICKER` transition
     // (open / close / switch target) so a reopened picker doesn't show
-    // the previous pick's typed message, error, or success banner. (The
+    // the previous pick's typed message or error. (The
     // selected room is additionally session-tagged — see
     // `selected_room_value` below — so its correctness does not depend on
     // this effect's timing; the effect clears it too, as hygiene.)
@@ -122,7 +122,6 @@ pub fn InviteViaDmPickerModal() -> Element {
         selected_room.set(None);
         personal_message.set(String::new());
         send_error.set(None);
-        last_success_label.set(None);
     });
 
     // --- Early return: render nothing while the picker is closed ------
@@ -250,7 +249,6 @@ pub fn InviteViaDmPickerModal() -> Element {
         .filter(|vk| candidates_value.iter().any(|c| &c.room_vk == vk));
     let personal_message_value = personal_message.read().clone();
     let send_error_value = send_error.read().clone();
-    let last_success_label_value = last_success_label.read().clone();
     let pmessage_chars = personal_message_value.chars().count();
     let can_send = selected_room_value.is_some() && !any_pending;
 
@@ -365,8 +363,8 @@ pub fn InviteViaDmPickerModal() -> Element {
                 // cleared INFLIGHT, or the user may have started a newer
                 // pick. The generation check below detects that. If this
                 // task's pick is no longer the active one, skip the
-                // picker-local UI updates (`last_success_label` /
-                // `send_error` / closing the picker) — applying them
+                // picker-local UI updates (`send_error` / closing the
+                // picker) — applying them
                 // would clobber a newer picker session or resurrect an
                 // already-closed one — and do only the global INFLIGHT
                 // cleanup. (The component itself never unmounts, so the
@@ -384,8 +382,13 @@ pub fn InviteViaDmPickerModal() -> Element {
                             "invite-via-DM: sent invite for room {:?}",
                             candidate_room_vk
                         );
+                        // Confirm it either way: a send that finished after
+                        // the watchdog closed the picker still delivered.
+                        show_toast(
+                            format!("Invitation to \"{candidate_label_for_task}\" sent"),
+                            None,
+                        );
                         if still_mine {
-                            last_success_label.set(Some(candidate_label_for_task.clone()));
                             // Close the picker and the parent member-info
                             // modal — the user is done with this flow.
                             // Only when this pick is still the active one
@@ -399,7 +402,8 @@ pub fn InviteViaDmPickerModal() -> Element {
                             // ROOMS write inside `send_structured_dm`
                             // already happened, so the network sync
                             // queue will deliver the invite to the
-                            // recipient regardless.
+                            // recipient regardless, and the toast above
+                            // says so.
                             info!(
                                 "invite-via-DM: send completed after watchdog \
                                  fired — skipping picker-local UI updates"
@@ -521,13 +525,6 @@ pub fn InviteViaDmPickerModal() -> Element {
                     }
                     if let Some(err) = send_error_value.as_ref() {
                         div { class: "text-xs text-red-400", "{err}" }
-                    }
-                    if let Some(label) = last_success_label_value.as_ref() {
-                        div { class: "text-xs text-emerald-400",
-                            "Invitation to \""
-                            span { class: "font-medium", "{label}" }
-                            "\" sent."
-                        }
                     }
                 }
                 // Footer: Send button only enabled once a room is picked

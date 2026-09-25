@@ -9,7 +9,6 @@
 
 use crate::components::app::chat_delegate::{flush_rooms_to_delegate, save_rooms_to_delegate};
 use crate::components::app::{CURRENT_ROOM, ROOMS};
-use crate::util::ecies::unseal_bytes_with_secrets;
 use dioxus::logger::tracing::{debug, info, warn};
 use dioxus::prelude::*;
 use river_core::room_state::member::MemberId;
@@ -138,18 +137,7 @@ fn get_current_room_name() -> Option<String> {
     let owner_key = current_room.owner_key?;
 
     let rooms = ROOMS.try_read().ok()?;
-    let room_data = rooms.map.get(&owner_key)?;
-
-    let sealed_name = &room_data
-        .room_state
-        .configuration
-        .configuration
-        .display
-        .name;
-    match unseal_bytes_with_secrets(sealed_name, &room_data.secrets) {
-        Ok(bytes) => Some(String::from_utf8_lossy(&bytes).to_string()),
-        Err(_) => Some(sealed_name.to_string_lossy()),
-    }
+    Some(rooms.map.get(&owner_key)?.display_name())
 }
 
 /// Count unread messages in a single room's [`RoomData`].

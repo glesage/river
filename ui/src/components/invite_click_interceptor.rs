@@ -14,7 +14,7 @@
 //!   same-origin links and fall back to navigating the iframe in place.
 //! - In-place navigation re-mounts `App`, restarts the synchronizer,
 //!   re-hydrates `ROOMS` from the delegate, and only THEN renders the
-//!   `ReceiveInvitationModal` in its "Preparing to subscribe…" state.
+//!   `ReceiveInvitationModal`.
 //!   To the user it looks like the UI froze for several seconds and
 //!   their open DM thread / draft is gone.
 //!
@@ -94,8 +94,8 @@ pub fn install_invite_click_interceptor() {
                 // tab (which works in the sandbox via the gateway shell
                 // for cross-origin destinations). If we intercepted
                 // those, the modal would either fail to parse the code
-                // or get stuck "preparing to subscribe" against a
-                // contract this gateway doesn't host.
+                // or the join would get stuck against a contract this
+                // gateway doesn't host.
                 let same_origin = web_sys::window()
                     .and_then(|w| w.location().origin().ok())
                     .map(|origin| href.starts_with(&origin) || href.starts_with('/'))

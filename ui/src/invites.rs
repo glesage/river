@@ -59,6 +59,22 @@ pub struct PendingRoomJoin {
     pub room_secrets: Vec<(u32, [u8; 32])>,
 }
 
+impl PendingRoomJoin {
+    /// The invitation this join was accepted from, rebuilt from the fields
+    /// `accept_invitation` copied out of it. Byte-identical to the original,
+    /// so its `to_encoded_string()` fingerprint matches the one the URL and
+    /// dismiss paths record (pinned by
+    /// `a_pending_join_rebuilds_the_invitation_it_came_from`).
+    pub fn invitation(&self, room: VerifyingKey) -> crate::components::members::Invitation {
+        crate::components::members::Invitation {
+            room,
+            invitee_signing_key: self.invitee_signing_key.clone(),
+            invitee: self.authorized_member.clone(),
+            room_secrets: self.room_secrets.clone(),
+        }
+    }
+}
+
 /// Hand-written `Debug` that REDACTS `room_secrets` — the derived `Debug`
 /// for `[u8; 32]` would print every room-secret byte if a `PendingRoomJoin`
 /// were ever `{:?}`-logged. `SigningKey`'s own `Debug` is already
@@ -87,14 +103,15 @@ pub enum PendingRoomStatus {
     PendingSubscription,
     /// Subscription request sent, waiting for response
     Subscribing,
-    /// Successfully subscribed and retrieved room data
-    Subscribed,
-    /// Error occurred during subscription or retrieval
+    /// Error occurred during subscription or retrieval. The entry stays until
+    /// the user retries (from the error toast) or accepts the invitation
+    /// again; a successful join removes its entry instead
+    /// (`receive_invitation_modal::finish_join`).
     Error(String),
 }
 
 impl PendingRoomStatus {
-    /// Whether the join is still being worked on (not yet subscribed, not failed).
+    /// Whether the join is still being worked on (not failed).
     pub fn is_in_progress(&self) -> bool {
         matches!(self, Self::PendingSubscription | Self::Subscribing)
     }
@@ -104,11 +121,48 @@ impl PendingRoomStatus {
 mod tests {
     use super::*;
 
+    /// `finish_join` marks the invitation processed from the pending entry,
+    /// so the rebuilt invitation must encode to the same bytes as the one the
+    /// user accepted, or the URL's `?invitation=` would re-prompt after a
+    /// successful join. Built with room secrets, the field most likely to
+    /// be dropped.
+    #[test]
+    fn a_pending_join_rebuilds_the_invitation_it_came_from() {
+        use river_core::room_state::member::Member;
+        let inviter = SigningKey::from_bytes(&[1u8; 32]);
+        let invitee_signing_key = SigningKey::from_bytes(&[2u8; 32]);
+        let owner_vk = SigningKey::from_bytes(&[3u8; 32]).verifying_key();
+        let member = Member {
+            owner_member_id: owner_vk.into(),
+            invited_by: inviter.verifying_key().into(),
+            member_vk: invitee_signing_key.verifying_key(),
+        };
+        let accepted = crate::components::members::Invitation {
+            room: owner_vk,
+            invitee_signing_key,
+            invitee: AuthorizedMember::new(member, &inviter),
+            room_secrets: vec![(0, [0xA1; 32]), (3, [0xB2; 32])],
+        };
+        // The fields `accept_invitation` copies into the entry.
+        let join = PendingRoomJoin {
+            authorized_member: accepted.invitee.clone(),
+            invitee_signing_key: accepted.invitee_signing_key.clone(),
+            preferred_nickname: "Alice".to_string(),
+            status: PendingRoomStatus::PendingSubscription,
+            subscribing_since: None,
+            retry_count: 0,
+            room_secrets: accepted.room_secrets.clone(),
+        };
+        assert_eq!(
+            join.invitation(owner_vk).to_encoded_string(),
+            accepted.to_encoded_string()
+        );
+    }
+
     #[test]
     fn is_in_progress_only_for_pending_and_subscribing() {
         assert!(PendingRoomStatus::PendingSubscription.is_in_progress());
         assert!(PendingRoomStatus::Subscribing.is_in_progress());
-        assert!(!PendingRoomStatus::Subscribed.is_in_progress());
         assert!(!PendingRoomStatus::Error("x".to_string()).is_in_progress());
     }
 }

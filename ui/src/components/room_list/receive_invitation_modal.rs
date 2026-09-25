@@ -1,6 +1,7 @@
 use crate::components::app::freenet_api::freenet_synchronizer::SynchronizerMessage;
-use crate::components::app::{PENDING_INVITES, ROOMS, SYNCHRONIZER};
+use crate::components::app::{MobileView, MOBILE_VIEW, PENDING_INVITES, ROOMS, SYNCHRONIZER};
 use crate::components::members::Invitation;
+use crate::components::toast::{show_error_toast, show_toast, ToastAction};
 use crate::invites::{PendingRoomJoin, PendingRoomStatus};
 use crate::room_data::Rooms;
 use crate::util::display_name::{contains_hidden_chars, EMOJI_REJECTION_MESSAGE};
@@ -34,7 +35,7 @@ const INVITATION_STORAGE_KEY: &str = "river_pending_invitation";
 /// Sibling key to [`INVITATION_STORAGE_KEY`] holding the nickname the user
 /// chose when they accepted the pending invitation. Persisting it lets a
 /// reload mid-subscription auto-resume `accept_invitation` (re-populating the
-/// in-memory `PENDING_INVITES` so the "Subscribing…" indicator returns)
+/// in-memory `PENDING_INVITES` so the join's loading dots return)
 /// instead of re-prompting for a nickname (#218). Only written once the user
 /// has clicked Accept — a reload *before* Accept still shows the nickname
 /// prompt, matching the fingerprint guard's "mark only on definitive action"
@@ -342,7 +343,7 @@ pub enum RecoveredInvitationAction {
 /// present" is the authoritative "accepted but join not yet finished, resume
 /// it" signal. Note the processed flag is NOT a reliable mid-flight signal:
 /// `accept_invitation` does NOT mark the invitation processed (the mark now
-/// happens only at terminal success, in `render_subscribed_state`, or on
+/// happens only at terminal success, in `finish_join`, or on
 /// dismiss), so a reload mid-subscription sees `already_processed == false`.
 /// The `None if already_processed => Discard` arm therefore only fires for an
 /// invitation that reached a terminal state in a prior session yet somehow
@@ -610,159 +611,44 @@ fn dismiss_invitation_persistently(inv: &Invitation, mut invitation: Signal<Opti
     invitation.set(None);
 }
 
-/// Main component for the invitation modal
-#[component]
-pub fn ReceiveInvitationModal(invitation: Signal<Option<Invitation>>) -> Element {
-    // No event listener needed — PENDING_INVITES is a GlobalSignal.
-    // When get_response.rs sets status to Subscribed, this component
-    // re-renders via render_invitation_content reading PENDING_INVITES.
-
-    // Don't render anything if there's no invitation
-    let inv_data = invitation.read().as_ref().cloned();
-    if inv_data.is_none() {
-        return rsx! {};
-    }
-
-    rsx! {
-        // Modal backdrop - no click dismiss to prevent accidental invitation loss
-        div {
-            class: "fixed inset-0 z-50 flex items-center justify-center",
-            // Overlay (non-dismissable)
-            div {
-                class: "absolute inset-0 bg-black/50",
-            }
-            // Modal content
-            div {
-                "data-testid": "receive-invitation-modal",
-                class: "relative z-10 w-full max-w-md mx-4 bg-panel rounded-xl shadow-xl border border-border",
-                div {
-                    class: "p-6",
-                    h1 { class: "text-xl font-semibold text-text mb-4", "Invitation Received" }
-                    {render_invitation_content(inv_data.unwrap(), invitation)}
-                }
-            }
-        }
-    }
+/// Whether a join for `room` has been attempted in this page load: in
+/// progress, or failed and not yet retried. `peek`, so a caller rendering in
+/// `App`'s body does not subscribe `App` to `PENDING_INVITES`.
+pub(crate) fn join_attempted(room: &VerifyingKey) -> bool {
+    PENDING_INVITES.peek().map.contains_key(room)
 }
 
-/// Renders the content of the invitation modal based on the invitation data
-fn render_invitation_content(inv: Invitation, invitation: Signal<Option<Invitation>>) -> Element {
-    // Clone the status to release the read guard before any branch can mutate
-    let status = {
-        let pending_invites = PENDING_INVITES.read();
-        pending_invites
-            .map
-            .get(&inv.room)
-            .map(|join| join.status.clone())
+/// Whether a join for `room` is running right now (not failed). Same `peek`
+/// reasoning as [`join_attempted`].
+pub(crate) fn join_in_progress(room: &VerifyingKey) -> bool {
+    PENDING_INVITES
+        .peek()
+        .map
+        .get(room)
+        .is_some_and(|join| join.status.is_in_progress())
+}
+
+/// Close the modal once Accept has started the join. From here the big dots
+/// ("Joining room…") show the wait, and a toast reports the outcome
+/// ([`finish_join`] / [`fail_join`]). On mobile, switch to the chat so the
+/// dots are on screen: a join started from the rooms list (join with code)
+/// would otherwise show nothing at all.
+fn close_for_join(mut invitation: Signal<Option<Invitation>>) {
+    crate::util::defer(move || {
+        invitation.set(None);
+        *MOBILE_VIEW.write() = MobileView::Chat;
+    });
+}
+
+/// The join for `room` finished: the room is in `ROOMS` and subscribed. Call
+/// inside `crate::util::defer`, from each place that completes a join.
+///
+/// Runs at most once per join. The pending entry's removal is the dedup: a
+/// retry can leave two GETs in flight, and both can succeed.
+pub(crate) fn finish_join(room: VerifyingKey) {
+    let Some(join) = PENDING_INVITES.with_mut(|pending| pending.map.remove(&room)) else {
+        return;
     };
-
-    match status {
-        Some(PendingRoomStatus::PendingSubscription) => render_pending_subscription_state(),
-        Some(PendingRoomStatus::Subscribing) => render_subscribing_state(),
-        Some(PendingRoomStatus::Error(e)) => render_error_state(&e, &inv, invitation),
-        Some(PendingRoomStatus::Subscribed) => {
-            // Room subscribed and retrieved successfully, close modal
-            render_subscribed_state(&inv, invitation)
-        }
-        None => render_invitation_options(inv, invitation),
-    }
-}
-
-/// Renders the state when waiting to subscribe to room data
-fn render_pending_subscription_state() -> Element {
-    rsx! {
-        div {
-            class: "text-center py-4",
-            p { class: "mb-4 text-text", "Preparing to subscribe to room..." }
-            div { class: "w-full h-2 bg-surface rounded-full overflow-hidden",
-                div { class: "h-full bg-accent animate-pulse w-1/2" }
-            }
-        }
-    }
-}
-
-/// Renders the loading state when subscribing to room data
-fn render_subscribing_state() -> Element {
-    rsx! {
-        div {
-            class: "text-center py-4",
-            p { class: "mb-4 text-text", "Subscribing to room..." }
-            div { class: "w-full h-2 bg-surface rounded-full overflow-hidden",
-                div { class: "h-full bg-blue-500 animate-pulse w-2/3" }
-            }
-        }
-    }
-}
-
-/// Renders the error state when room retrieval fails
-fn render_error_state(
-    error: &str,
-    inv: &Invitation,
-    invitation: Signal<Option<Invitation>>,
-) -> Element {
-    let room_key = inv.room; // Copy type, avoid clone
-    let inv_for_dismiss = inv.clone();
-
-    rsx! {
-        div {
-            class: "bg-red-500/10 border border-red-500/20 rounded-lg p-4",
-            p { class: "mb-4 text-red-400", "Failed to retrieve room: {error}" }
-            div {
-                class: "flex gap-3",
-                button {
-                    class: "px-4 py-2 bg-accent hover:bg-accent-hover text-white font-medium rounded-lg transition-colors",
-                    onmounted: move |cx| {
-                        let element = cx.data();
-                        wasm_bindgen_futures::spawn_local(async move {
-                            let _ = element.set_focus(true).await;
-                        });
-                    },
-                    // Signal mutation from an event handler must be deferred
-                    // (dioxus-signal-safety: direct writes here are the Firefox
-                    // mobile RefCell re-entrancy crash path).
-                    onclick: move |_| {
-                        crate::util::defer(move || {
-                            // Reset to PendingSubscription so the synchronizer retries
-                            PENDING_INVITES.with_mut(|pending| {
-                                if let Some(join) = pending.map.get_mut(&room_key) {
-                                    join.status = PendingRoomStatus::PendingSubscription;
-                                }
-                            });
-                        });
-                    },
-                    "Retry"
-                }
-                button {
-                    class: "px-4 py-2 bg-surface hover:bg-surface-hover text-text rounded-lg transition-colors",
-                    // Deferred — same signal-safety rule as the Retry handler
-                    // above. BOTH statements go inside the defer so their
-                    // relative order is preserved (code after a `defer()` runs
-                    // BEFORE the deferred closure), and because
-                    // `dismiss_invitation_persistently` itself writes a signal
-                    // via `invitation.set(None)`. The clone is needed because
-                    // an `onclick` is `FnMut`, so the non-`Copy` invitation
-                    // cannot be moved out of the captured environment.
-                    onclick: move |_| {
-                        let inv = inv_for_dismiss.clone();
-                        crate::util::defer(move || {
-                            PENDING_INVITES.write().map.remove(&room_key);
-                            dismiss_invitation_persistently(&inv, invitation);
-                        });
-                    },
-                    "Dismiss"
-                }
-            }
-        }
-    }
-}
-
-/// Renders the state when room is successfully subscribed and retrieved.
-/// Cleans up the invitation and returns empty to dismiss the modal.
-fn render_subscribed_state(
-    inv: &Invitation,
-    mut invitation: Signal<Option<Invitation>>,
-) -> Element {
-    let room_key = inv.room;
     // Mark the invitation processed NOW — at terminal success — rather than up
     // front in `accept_invitation`. This is the gravestone fix: marking on
     // accept meant a join that never completed (e.g. the room-contract GET
@@ -781,27 +667,112 @@ fn render_subscribed_state(
     // The mark goes straight onto the durable, iframe-safe top-level URL hash,
     // so it works synchronously on the next load with no dependency on the
     // chat-delegate ROOMS hydration finishing first.
-    //
-    // Idempotent across the several renders this state may produce before the
-    // deferred `invitation.set(None)` below closes the modal:
-    // `mark_invitation_processed` -> `append_fingerprint` dedups, so a repeat
-    // mark is a no-op (no hash spam, no redundant postMessage).
-    mark_invitation_processed(&inv.to_encoded_string());
-    // Defer signal mutations to avoid RefCell panics during render.
-    // The modal renders one empty frame before cleanup runs — acceptable
-    // since we return rsx! {} immediately.
-    clear_invitation_from_storage();
-    crate::util::defer(move || {
-        PENDING_INVITES.with_mut(|pending| {
-            pending.map.remove(&room_key);
-        });
-        invitation.set(None);
-        info!(
-            "Invitation accepted, closing modal for {:?}",
-            MemberId::from(room_key)
-        );
+    mark_invitation_processed(&join.invitation(room).to_encoded_string());
+    // Only this room's: a second invitation opened while this join ran is
+    // still waiting on the user.
+    if load_invitation_from_storage().is_some_and(|stored| stored.room == room) {
+        clear_invitation_from_storage();
+    }
+    let name = ROOMS.try_read().ok().and_then(|rooms| {
+        rooms
+            .map
+            .get(&room)
+            .map(|room_data| room_data.display_name())
     });
-    rsx! {}
+    show_toast(
+        match name {
+            Some(name) => format!("Joined {name}"),
+            None => "Room joined".to_string(),
+        },
+        None,
+    );
+    info!("Joined room {:?}", MemberId::from(room));
+}
+
+/// The join for `room` failed with `reason`. Keeps the pending entry, in
+/// `Error`, so nothing re-prompts for the invitation on its own in this page
+/// load, and reports the failure in an error toast whose Retry re-drives the
+/// join. The invitation is NOT marked processed, so it re-surfaces on reload.
+pub(crate) fn fail_join(room: VerifyingKey, reason: String) {
+    PENDING_INVITES.with_mut(|pending| {
+        if let Some(join) = pending.map.get_mut(&room) {
+            join.status = PendingRoomStatus::Error(reason.clone());
+        }
+    });
+    show_error_toast(
+        format!("Couldn't join the room: {reason}"),
+        Some(ToastAction::new("Retry", move || retry_join(room))),
+    );
+}
+
+/// Put a failed join back in the queue and wake the synchronizer. Setting the
+/// status alone would wait for some unrelated `ProcessRooms` to pick it up.
+fn retry_join(room: VerifyingKey) {
+    crate::util::defer(move || {
+        let queued = PENDING_INVITES.with_mut(|pending| {
+            let Some(join) = pending.map.get_mut(&room) else {
+                return false;
+            };
+            join.status = PendingRoomStatus::PendingSubscription;
+            true
+        });
+        if !queued {
+            return;
+        }
+        if let Err(e) = SYNCHRONIZER
+            .read()
+            .get_message_sender()
+            .unbounded_send(SynchronizerMessage::ProcessRooms)
+        {
+            error!(
+                "Failed to retry the join for {:?}: {}",
+                MemberId::from(room),
+                e
+            );
+        }
+    });
+}
+
+/// Main component for the invitation modal
+#[component]
+pub fn ReceiveInvitationModal(invitation: Signal<Option<Invitation>>) -> Element {
+    // Don't render anything if there's no invitation
+    let Some(inv) = invitation.read().as_ref().cloned() else {
+        return rsx! {};
+    };
+
+    // Accept closes the modal while its join runs (`close_for_join`); this is
+    // a safety net for any path that reopens it mid-join. A failed join falls
+    // through to the normal options: accepting again restarts it.
+    let in_progress = PENDING_INVITES
+        .read()
+        .map
+        .get(&inv.room)
+        .is_some_and(|join| join.status.is_in_progress());
+    if in_progress {
+        return rsx! {};
+    }
+
+    rsx! {
+        // Modal backdrop - no click dismiss to prevent accidental invitation loss
+        div {
+            class: "fixed inset-0 z-50 flex items-center justify-center",
+            // Overlay (non-dismissable)
+            div {
+                class: "absolute inset-0 bg-black/50",
+            }
+            // Modal content
+            div {
+                "data-testid": "receive-invitation-modal",
+                class: "relative z-10 w-full max-w-md mx-4 bg-panel rounded-xl shadow-xl border border-border",
+                div {
+                    class: "p-6",
+                    h1 { class: "text-xl font-semibold text-text mb-4", "Invitation Received" }
+                    {render_invitation_options(inv, invitation)}
+                }
+            }
+        }
+    }
 }
 
 /// Renders the invitation options based on the user's membership status
@@ -1021,7 +992,9 @@ fn render_new_invitation(inv: Invitation, invitation: Signal<Option<Invitation>>
                 onkeydown: move |evt: KeyboardEvent| {
                     if evt.key() == Key::Enter && !accept_disabled {
                         evt.prevent_default();
-                        accept_invitation(inv_for_enter.clone(), nickname.read().clone());
+                        if accept_invitation(inv_for_enter.clone(), nickname.read().clone()) {
+                            close_for_join(invitation);
+                        }
                     }
                 },
                 placeholder: "Your name (e.g. Alex)"
@@ -1044,7 +1017,9 @@ fn render_new_invitation(inv: Invitation, invitation: Signal<Option<Invitation>>
                 class: "px-4 py-2 bg-accent hover:bg-accent-hover text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
                 disabled: accept_disabled,
                 onclick: move |_| {
-                    accept_invitation(inv_for_accept.clone(), nickname.read().clone());
+                    if accept_invitation(inv_for_accept.clone(), nickname.read().clone()) {
+                        close_for_join(invitation);
+                    }
                 },
                 "Accept"
             }
@@ -1063,12 +1038,13 @@ fn render_new_invitation(inv: Invitation, invitation: Signal<Option<Invitation>>
     }
 }
 
-/// Handles the invitation acceptance process.
+/// Handles the invitation acceptance process. Returns whether a join was
+/// started (false when the user is already a member under their current key).
 ///
 /// `pub(crate)` so the reload-recovery path in `app.rs` can auto-resume a
 /// subscription that was in flight when the page was reloaded (#218), reusing
 /// the exact same accept flow the Accept button uses.
-pub(crate) fn accept_invitation(inv: Invitation, nickname: String) {
+pub(crate) fn accept_invitation(inv: Invitation, nickname: String) -> bool {
     // Guard against re-accepting an invite to a room the user is ALREADY in.
     // Each invitation carries a freshly generated `invitee_signing_key`, so a
     // second accept would add another member entry (a new MemberId) for the
@@ -1114,7 +1090,7 @@ pub(crate) fn accept_invitation(inv: Invitation, nickname: String) {
                 // "already a member" branch and its dismiss is the terminal
                 // path; clearing storage only stops the silent auto-resume.
                 clear_invitation_from_storage();
-                return;
+                return false;
             }
         }
     }
@@ -1131,7 +1107,7 @@ pub(crate) fn accept_invitation(inv: Invitation, nickname: String) {
     // this on the official Freenet River room.
     //
     // The invitation is instead marked processed at TERMINAL SUCCESS, in
-    // `render_subscribed_state` (and on any dismiss, via
+    // `finish_join` (and on any dismiss, via
     // `dismiss_invitation_persistently`). A join that never finishes is never
     // marked, so it re-surfaces on the next load and the user can retry. We
     // still persist the invitation + chosen nickname to localStorage below so
@@ -1211,6 +1187,7 @@ pub(crate) fn accept_invitation(inv: Invitation, nickname: String) {
             );
         }
     }
+    true
 }
 
 /// Startup hook: retire any invitation an older River left in localStorage.
@@ -1887,7 +1864,7 @@ mod tests {
         // The user clicked Accept (nickname saved) and reloaded before the
         // room arrived. Even though `accept_invitation` already marked the
         // invitation processed, we must RESUME (not Discard) — otherwise the
-        // user is dropped with no "Subscribing…" feedback, which is exactly
+        // user is dropped with no join feedback at all, which is exactly
         // the bug #218 fixes.
         let action = decide_recovered_invitation(
             Some("Alice".to_string()),
@@ -1998,13 +1975,13 @@ mod tests {
     // ---- invite-gravestone fix: mark on terminal success, not on accept ----
     //
     // The fix moves `mark_invitation_processed` out of `accept_invitation`
-    // (up front) and into `render_subscribed_state` (terminal success).
+    // (up front) and into `finish_join` (terminal success).
     // `dismiss_invitation_persistently` still marks on any dismiss. The
     // processed-set lives in the durable, iframe-safe top-level URL hash and is
     // host-testable via `PROCESSED_CACHE`, so we drive it directly to assert
     // the four required outcomes. The actual call-site relocation is pinned by
-    // the two source-grep tests below (the rsx-returning render fns can't run
-    // without a Dioxus runtime).
+    // the two source-grep tests below (`finish_join` needs a Dioxus runtime
+    // for its signals).
 
     /// (a) Accepted but the join never completed → the invitation was NEVER
     /// marked processed, so the gate re-surfaces it and the user can retry.
@@ -2013,7 +1990,7 @@ mod tests {
     #[test]
     fn accepted_but_incomplete_join_is_not_suppressed() {
         PROCESSED_CACHE.with(|c| *c.borrow_mut() = Some(Vec::new()));
-        // accept_invitation no longer marks; render_subscribed_state never ran.
+        // accept_invitation no longer marks; finish_join never ran.
         assert!(
             !is_invitation_processed("invitation-incomplete"),
             "an accepted-but-incomplete join must remain retryable on reload"
@@ -2021,14 +1998,14 @@ mod tests {
         PROCESSED_CACHE.with(|c| *c.borrow_mut() = None);
     }
 
-    /// (b) Accepted and the join COMPLETED → `render_subscribed_state` marks it
+    /// (b) Accepted and the join COMPLETED → `finish_join` marks it
     /// processed, so a reload (URL still carries `?invitation=...`, which the
     /// iframe can't strip) is suppressed synchronously without re-prompting for
     /// a nickname (#215 / #216). We exercise the mark the success path makes.
     #[test]
     fn successful_join_suppresses_on_reload() {
         PROCESSED_CACHE.with(|c| *c.borrow_mut() = Some(Vec::new()));
-        // The load-bearing op render_subscribed_state performs at success:
+        // The load-bearing op finish_join performs at success:
         mark_invitation_processed("invitation-joined");
         assert!(
             is_invitation_processed("invitation-joined"),
@@ -2130,33 +2107,73 @@ mod tests {
              (freenet/river#365)."
         );
         assert!(
-            accept_body[..join_at].contains("return;"),
+            accept_body[..join_at].contains("return false;"),
             "the already-member guard must early-`return` before the join \
              (freenet/river#365)."
         );
     }
 
-    /// Source-grep pin: the terminal-success render (`render_subscribed_state`)
-    /// MUST mark the invitation processed, so a successful join is suppressed
-    /// on reload (#215/#216) and the accepted-then-left case stays suppressed
-    /// (#279). This is the relocation target for the mark removed from
-    /// `accept_invitation`.
+    /// Source-grep pin: terminal success (`finish_join`) MUST mark the
+    /// invitation processed, so a successful join is suppressed on reload
+    /// (#215/#216) and the accepted-then-left case stays suppressed (#279).
+    /// This is the relocation target for the mark removed from
+    /// `accept_invitation`. It must mark the invitation rebuilt from the
+    /// pending entry, whose fingerprint matches the URL's
+    /// (`a_pending_join_rebuilds_the_invitation_it_came_from`).
     #[test]
-    fn render_subscribed_state_marks_processed() {
+    fn finish_join_marks_processed() {
         let src = include_str!("receive_invitation_modal.rs");
-        let sub_fn = src
-            .split_once("fn render_subscribed_state(")
-            .expect("render_subscribed_state must exist")
+        let finish = src
+            .split_once("pub(crate) fn finish_join(")
+            .expect("finish_join must exist")
             .1;
-        // Body ends at the start of the next fn.
-        let sub_body = sub_fn
-            .split_once("\nfn ")
+        let finish = finish
+            .split_once("\npub(crate) fn fail_join(")
             .map(|(body, _)| body)
-            .unwrap_or(sub_fn);
+            .expect("fail_join must follow finish_join - bound is stale");
         assert!(
-            sub_body.contains("mark_invitation_processed(&inv.to_encoded_string())"),
-            "render_subscribed_state must mark the invitation processed at \
-             terminal success (the relocation target of the gravestone fix)."
+            finish
+                .contains("mark_invitation_processed(&join.invitation(room).to_encoded_string())"),
+            "finish_join must mark the invitation processed at terminal \
+             success (the relocation target of the gravestone fix)."
         );
+    }
+
+    /// Both places that complete a join hand it to `finish_join`, and both
+    /// places that fail one hand it to `fail_join`. A path that set the
+    /// status itself would skip the toast, and on success the processed mark.
+    #[test]
+    fn every_join_outcome_goes_through_finish_or_fail() {
+        let get = crate::util::source_scan::strip_line_comments(
+            crate::util::source_scan::production_only(include_str!(
+                "../app/freenet_api/response_handler/get_response.rs"
+            )),
+        );
+        assert_eq!(
+            get.matches("finish_join(owner_vk)").count(),
+            2,
+            "already-member and normal success"
+        );
+        assert_eq!(
+            get.matches("fail_join(owner_vk,").count(),
+            1,
+            "room at capacity"
+        );
+        let sync = crate::util::source_scan::strip_line_comments(
+            crate::util::source_scan::production_only(include_str!(
+                "../app/freenet_api/room_synchronizer.rs"
+            )),
+        );
+        assert_eq!(
+            sync.matches("fail_join(owner_vk,").count(),
+            1,
+            "GET send failure"
+        );
+        for src in [&get, &sync] {
+            assert!(
+                !src.contains("PendingRoomStatus::Error("),
+                "set a join's Error through fail_join, which also shows the toast"
+            );
+        }
     }
 }
