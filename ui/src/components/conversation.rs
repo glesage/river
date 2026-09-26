@@ -4918,6 +4918,19 @@ fn MessageGroupComponent(
         }
     });
 
+    // Enter and Save both commit through this. The size check runs at the
+    // call, so an over-limit draft stays open instead of being discarded.
+    let mut commit_edit = move |msg_id: MessageId, original: &str| {
+        let new_text = edit_text.read().clone();
+        if RoomMessageBody::measure_edit(msg_id.clone(), &new_text, is_private) > max_message_size {
+            return;
+        }
+        if !new_text.is_empty() && new_text != original {
+            on_edit.call((msg_id, new_text));
+        }
+        editing_message.set(None);
+    };
+
     rsx! {
         div {
             class: format!(
@@ -5036,32 +5049,6 @@ fn MessageGroupComponent(
                                                 let kd_id = edit_id.clone();
                                                 let input_id = edit_id.clone();
                                                 let input_members = edit_mention_members.clone();
-                                                // Enter and Save both commit through this. The size
-                                                // check runs at the call, so an over-limit draft stays
-                                                // open instead of being discarded.
-                                                fn commit_edit(
-                                                    edit_text: Signal<String>,
-                                                    mut editing_message: Signal<Option<String>>,
-                                                    on_edit: EventHandler<(MessageId, String)>,
-                                                    msg_id: MessageId,
-                                                    original: &str,
-                                                    is_private: bool,
-                                                    max_message_size: usize,
-                                                ) {
-                                                    let new_text = edit_text.read().clone();
-                                                    if RoomMessageBody::measure_edit(
-                                                        msg_id.clone(),
-                                                        &new_text,
-                                                        is_private,
-                                                    ) > max_message_size
-                                                    {
-                                                        return;
-                                                    }
-                                                    if !new_text.is_empty() && new_text != original {
-                                                        on_edit.call((msg_id, new_text));
-                                                    }
-                                                    editing_message.set(None);
-                                                }
                                                 rsx! {
                                                     div {
                                                         class: format!(
@@ -5093,15 +5080,7 @@ fn MessageGroupComponent(
                                                                     // selection takes the key first, on the
                                                                     // textarea, and stops it reaching here.
                                                                     e.prevent_default();
-                                                                    commit_edit(
-                                                                        edit_text,
-                                                                        editing_message,
-                                                                        on_edit,
-                                                                        msg_id.clone(),
-                                                                        &original,
-                                                                        is_private,
-                                                                        max_message_size,
-                                                                    );
+                                                                    commit_edit(msg_id.clone(), &original);
                                                                 }
                                                             }
                                                         },
@@ -5222,15 +5201,7 @@ fn MessageGroupComponent(
                                                                         // re-checks the encoded size and keeps the
                                                                         // draft when it is still over the limit.
                                                                         onclick: move |_| {
-                                                                            commit_edit(
-                                                                                edit_text,
-                                                                                editing_message,
-                                                                                on_edit,
-                                                                                save_msg_id.clone(),
-                                                                                &save_original,
-                                                                                is_private,
-                                                                                max_message_size,
-                                                                            );
+                                                                            commit_edit(save_msg_id.clone(), &save_original);
                                                                         },
                                                                         "Save (Enter)"
                                                                     }

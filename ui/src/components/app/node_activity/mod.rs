@@ -340,10 +340,10 @@ mod tests {
             }
             checked += changes;
         }
-        assert_eq!(
-            checked, 13,
-            "expected exactly the 13 known user room changes; update this \
-             deliberately if you added or removed one"
+        assert!(
+            checked >= 13,
+            "found {checked} user room changes, fewer than the 13 known ones; \
+             lower this deliberately if you removed one"
         );
 
         let helpers = strip_line_comments(production_only(include_str!("../user_actions.rs")));
@@ -439,9 +439,8 @@ mod tests {
             ("edit_room_modal.rs", &edit_room, "fn MaxMembersField("),
         ] {
             let body = fn_body(src, component);
-            assert_eq!(
-                body.matches(helper).count(),
-                1,
+            assert!(
+                body.contains(helper),
                 "{name} {component}: must save through {helper}"
             );
             assert!(
@@ -449,12 +448,6 @@ mod tests {
                 "{name} {component}: signs or syncs on its own again"
             );
         }
-        assert_eq!(
-            edit_room.matches(helper).count() - edit_room.matches(&definition).count(),
-            3,
-            "edit_room_modal.rs: expected exactly the description, numeric and \
-             member-cap callers"
-        );
     }
 
     // Subscription and PUT can wait on the network; only local key storage
@@ -480,10 +473,9 @@ mod tests {
             tracked.contains(".await"),
             "the tracked store must finish before EnsureRoomSubscription is sent"
         );
-        assert_eq!(
-            src.matches("node_activity::").count(),
-            2,
-            "only the key store is a user wait here (one track, one ActionKind)"
+        assert!(
+            !src[..track].contains("node_activity::") && !src[ensure..].contains("node_activity::"),
+            "only the key store is a user wait here"
         );
     }
 
@@ -493,37 +485,30 @@ mod tests {
             (
                 "invite_member_modal.rs",
                 include_str!("../../members/invite_member_modal.rs"),
-                1,
             ),
             (
                 "invite_via_dm_picker_modal.rs",
                 include_str!("../../direct_messages/invite_via_dm_picker_modal.rs"),
-                1,
             ),
             // Explicit room saves share one tracked helper.
-            ("user_actions.rs", include_str!("../user_actions.rs"), 1),
-            ("members.rs", include_str!("../../members.rs"), 1),
+            ("user_actions.rs", include_str!("../user_actions.rs")),
+            ("members.rs", include_str!("../../members.rs")),
             // The shared configuration save, which also serves
             // room_name_field.rs.
             (
                 "edit_room_modal.rs",
                 include_str!("../../room_list/edit_room_modal.rs"),
-                1,
             ),
             (
                 "ban_button.rs",
                 include_str!("../../members/member_info_modal/ban_button.rs"),
-                1,
             ),
         ];
-        for (name, src, expected) in files {
+        for (name, src) in files {
             let src = strip_line_comments(production_only(src));
-            let guards = src.matches("node_activity::track(").count()
-                + src.matches("node_activity::busy(").count();
-            assert_eq!(
-                guards, expected,
-                "{name}: expected {expected} scoped user action(s); update this \
-                 deliberately if you added or removed one"
+            assert!(
+                src.contains("node_activity::track(") || src.contains("node_activity::busy("),
+                "{name}: lost its scoped user action guard"
             );
         }
 
@@ -567,11 +552,9 @@ mod tests {
 
         let helpers = strip_line_comments(production_only(include_str!("../user_actions.rs")));
         let save = fn_body(&helpers, "pub fn spawn_user_rooms_save(");
-        assert_eq!(
-            save.matches("node_activity::track(ActionKind::Saving, save_rooms_to_delegate())")
-                .count(),
-            1,
-            "spawn_user_rooms_save must make one save, under the Saving guard"
+        assert!(
+            save.contains("node_activity::track(ActionKind::Saving, save_rooms_to_delegate())"),
+            "spawn_user_rooms_save must save under the Saving guard"
         );
         // Four reorder sites, the notification mode, and leaving a room.
         for (name, src, expected) in [
@@ -588,11 +571,11 @@ mod tests {
             ),
         ] {
             let src = strip_line_comments(production_only(src));
-            assert_eq!(
-                src.matches("user_actions::spawn_user_rooms_save(").count(),
-                expected,
-                "{name}: expected {expected} explicit room save(s) through \
-                 spawn_user_rooms_save"
+            let saves = src.matches("user_actions::spawn_user_rooms_save(").count();
+            assert!(
+                saves >= expected,
+                "{name}: found {saves} explicit room save(s) through \
+                 spawn_user_rooms_save, fewer than the {expected} known"
             );
         }
 

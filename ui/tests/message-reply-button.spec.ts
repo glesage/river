@@ -1,5 +1,5 @@
 import { test, expect, Page, Locator } from "@playwright/test";
-import { selectListedRoom, waitForApp } from "./example-room";
+import { selectListedRoom, selectListedRoomWidened, waitForApp } from "./example-room";
 
 // Under each bubble: reaction chips then the add-reaction smiley at the
 // bottom-left; the time and the reply/edit/delete buttons pinned to the
@@ -15,14 +15,7 @@ async function selectRoom(page: Page, roomName: string) {
     } else {
       const vp = page.viewportSize();
       if (vp && vp.width < 768) {
-        await page.setViewportSize({ width: 1280, height: vp.height });
-        await selectListedRoom(page, roomName);
-        await page.setViewportSize({ width: vp.width, height: vp.height });
-        // `--chat-col` comes from a ResizeObserver, so it is stale until the
-        // next frame: let it catch up before anything measures the column.
-        await page.evaluate(
-          () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-        );
+        await selectListedRoomWidened(page, roomName);
         return;
       }
     }

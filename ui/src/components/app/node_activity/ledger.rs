@@ -100,12 +100,10 @@ impl Ledger {
     }
 
     pub(crate) fn expire(&mut self, now: f64, max_ms: f64) -> Vec<(SlotId, RequestKind)> {
-        let (stale, fresh): (Vec<Slot>, Vec<Slot>) = self
-            .slots
-            .drain(..)
-            .partition(|s| s.sent_at <= now - max_ms);
-        self.slots = fresh;
-        stale.into_iter().map(|s| (s.id, s.kind)).collect()
+        self.slots
+            .extract_if(.., |s| s.sent_at <= now - max_ms)
+            .map(|s| (s.id, s.kind))
+            .collect()
     }
 
     pub(crate) fn ids(&self) -> impl Iterator<Item = SlotId> + '_ {
@@ -280,6 +278,26 @@ mod tests {
         let dropped = l.expire(90_000.0, 90_000.0);
         assert_eq!(dropped, vec![(old, RequestKind::Get(c(1)))]);
         assert_eq!(l.ids().collect::<Vec<_>>(), vec![young]);
+    }
+
+    #[test]
+    fn expire_keeps_survivor_and_expiry_order_when_interleaved() {
+        let mut l = Ledger::default();
+        let stale_a = l.record(RequestKind::Get(c(1)), 0.0);
+        let fresh_a = l.record(RequestKind::Get(c(2)), 50_000.0);
+        let stale_b = l.record(RequestKind::Get(c(3)), 10_000.0);
+        let fresh_b = l.record(RequestKind::Get(c(4)), 60_000.0);
+        let dropped = l.expire(100_000.0, 90_000.0);
+        assert_eq!(
+            dropped,
+            vec![
+                (stale_a, RequestKind::Get(c(1))),
+                (stale_b, RequestKind::Get(c(3)))
+            ]
+        );
+        assert_eq!(l.ids().collect::<Vec<_>>(), vec![fresh_a, fresh_b]);
+        assert_eq!(l.settle(&Settle::Oldest), Some(fresh_a));
+        assert_eq!(l.settle(&Settle::Oldest), Some(fresh_b));
     }
 
     #[test]

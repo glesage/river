@@ -1,5 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
-import { selectListedRoom, waitForApp } from "./example-room";
+import { selectListedRoom, selectListedRoomWidened, waitForApp } from "./example-room";
 
 // Regression tests for freenet/river#205, #206, #207:
 //   #205 edit box wider than view
@@ -16,15 +16,7 @@ async function selectRoom(page: Page, roomName: string) {
     // Narrow-window case: temporarily expand to click the room.
     const vp = page.viewportSize();
     if (vp && vp.width < 768) {
-      await page.setViewportSize({ width: 1280, height: vp.height });
-      await selectListedRoom(page, roomName);
-      await page.setViewportSize({ width: vp.width, height: vp.height });
-      // `--chat-col` (the bubble width cap) is published from a
-      // ResizeObserver, so it lags the resize by a frame.
-      await page.evaluate(
-        () =>
-          new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-      );
+      await selectListedRoomWidened(page, roomName);
       return;
     }
   }
@@ -510,9 +502,30 @@ function composerAutosizeCostTest() {
     // write-free only because the border slack still leaves the box
     // overflowing. Under the clamp this passed for a different reason (the
     // target was pinned at the maximum), so it has to be re-checked here.
-    await textarea.fill(Array.from({ length: 30 }, (_, i) => i).join("\n"));
+    const TALL_LINES = 30;
+    await textarea.fill(Array.from({ length: TALL_LINES }, (_, i) => i).join("\n"));
     const tall = await height();
     expect(tall).toBeGreaterThan(fourLines);
+    // It grows instead of scrolling inside itself: every line gets its own line
+    // box, and nothing is left to scroll to. The one overflow allowed is the
+    // border-width shortfall `auto_resize_message_input` keeps on purpose so
+    // typing can measure in place.
+    const tallBox = await textarea.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return {
+        scroll: el.scrollHeight,
+        client: el.clientHeight,
+        overflowY: cs.overflowY,
+        lineHeight: parseFloat(cs.lineHeight),
+        borders: parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth),
+      };
+    });
+    expect(tallBox.overflowY).toBe("hidden");
+    expect(tall).toBeGreaterThanOrEqual(TALL_LINES * tallBox.lineHeight);
+    expect(
+      tallBox.scroll - tallBox.client,
+      `scrollHeight ${tallBox.scroll}, clientHeight ${tallBox.client}`
+    ).toBeLessThanOrEqual(tallBox.borders);
     const tallTypingWrites = await writesDuring(async () => {
       await page.keyboard.type("xyz");
     });
@@ -536,50 +549,6 @@ test.describe("Composer auto-resize cost (#468) @ desktop", () => {
 test.describe("Composer auto-resize cost (#468) @ phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
   composerAutosizeCostTest();
-});
-
-// The composer grows with the draft instead of scrolling inside itself. It used
-// to stop at 168px (~7 lines) and scroll past that.
-test.describe("Composer grows without scrolling", () => {
-  test.use({ viewport: { width: 1280, height: 800 } });
-
-  test("a long draft grows the composer, with no internal scroll", async ({
-    page,
-  }) => {
-    await page.goto("/");
-    await waitForApp(page);
-    await selectRoom(page, "Your Private Room");
-
-    const textarea = page.getByTestId("message-input");
-    await expect(textarea).toBeVisible({ timeout: 10_000 });
-
-    const LINES = 15;
-    await textarea.fill(
-      Array.from({ length: LINES }, (_, i) => `draft line ${i}`).join("\n")
-    );
-    const m = await textarea.evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return {
-        height: el.getBoundingClientRect().height,
-        scroll: el.scrollHeight,
-        client: el.clientHeight,
-        overflowY: cs.overflowY,
-        lineHeight: parseFloat(cs.lineHeight),
-        borders: parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth),
-      };
-    });
-
-    expect(m.overflowY).toBe("hidden");
-    // Every line gets its own line box. The old ceiling fit about seven.
-    expect(m.height).toBeGreaterThanOrEqual(LINES * m.lineHeight);
-    // Nothing is left to scroll to. The one overflow allowed is the
-    // border-width shortfall `auto_resize_message_input` keeps on purpose so
-    // typing can measure in place (#468 above).
-    expect(
-      m.scroll - m.client,
-      `scrollHeight ${m.scroll}, clientHeight ${m.client}`
-    ).toBeLessThanOrEqual(m.borders);
-  });
 });
 
 // The composer's focus indicator is its border turning `--color-text` (resolved

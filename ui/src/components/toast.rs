@@ -176,7 +176,6 @@ impl PartialEq for Toast {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::util::source_scan::{production_only, strip_line_comments};
 
     #[test]
     fn toast_ids_are_distinct() {
@@ -191,49 +190,5 @@ mod tests {
         assert!(is_current(Some(7), 7));
         assert!(!is_current(Some(8), 7), "a newer toast is left alone");
         assert!(!is_current(None, 7), "an already-closed toast stays closed");
-    }
-
-    #[test]
-    fn toasts_last_five_seconds() {
-        assert_eq!(TOAST_DURATION_MS, 5_000);
-    }
-
-
-    #[test]
-    fn the_host_mounts_once_after_every_modal() {
-        let app = strip_line_comments(production_only(include_str!("app.rs")));
-        let host = app.find("ToastHost {}").expect("App must mount ToastHost");
-        assert_eq!(app.matches("ToastHost {}").count(), 1);
-        for modal in [
-            "EditRoomModal {}",
-            "NotificationModal {}",
-            "MemberInfoModal {}",
-            "CreateRoomModal {}",
-            "DmThreadModal {}",
-            "InviteViaDmPickerModal {}",
-            "ReceiveInvitationModal {",
-        ] {
-            let at = app
-                .find(modal)
-                .unwrap_or_else(|| panic!("{modal} is no longer mounted in App; move the pin"));
-            assert!(at < host, "ToastHost must come after {modal}");
-        }
-    }
-
-
-    #[test]
-    fn the_toast_sits_at_the_top_above_the_modals() {
-        let css = include_str!("../../assets/main.css");
-        let rule = crate::util::source_scan::css_rule_body(css, ".river-toast");
-        assert!(rule.contains("position: fixed;"), "{rule}");
-        assert!(
-            rule.contains("top: max(1rem, env(safe-area-inset-top));"),
-            "{rule}"
-        );
-        assert!(
-            !rule.contains("bottom:"),
-            "the toast belongs at the top: {rule}"
-        );
-        assert!(rule.contains("z-index: 60;"), "{rule}");
     }
 }

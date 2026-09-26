@@ -277,10 +277,8 @@ pub fn App() -> Element {
                             debug!(
                                 "Skipping invitation in URL: already accepted or dismissed in this browser"
                             );
-                        } else if join_attempted(&invitation.room) {
+                        } else if !join_attempted(&invitation.room) {
                             // Re-renders must not reopen the modal after Accept, even on failure.
-                            debug!("Skipping invitation in URL: its join was already attempted");
-                        } else {
                             info!("Received invitation from URL: {:?}", invitation);
                             save_invitation_to_storage(&invitation);
                             receive_invitation.set(Some(invitation));
@@ -706,7 +704,7 @@ mod tests {
             .find("found_invitation = true;")
             .expect("URL opener end")];
         assert!(
-            url.contains("join_attempted(&invitation.room)"),
+            url.contains("!join_attempted(&invitation.room)"),
             "the URL opener must skip an attempted join"
         );
 

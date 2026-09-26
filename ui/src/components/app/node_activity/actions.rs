@@ -102,7 +102,7 @@ impl Actions {
     }
 
     #[cfg(test)]
-    pub(crate) fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.pending.is_empty()
     }
 }

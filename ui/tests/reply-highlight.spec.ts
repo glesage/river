@@ -1,5 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
-import { selectListedRoom, waitForApp } from "./example-room";
+import { selectListedRoom, selectListedRoomWidened, waitForApp } from "./example-room";
 
 // Clicking a reply's quote strip (`data-testid="reply-strip"`) scrolls to the
 // quoted message and fills its row with the bubble grey for 2s, switching on
@@ -20,15 +20,7 @@ async function selectRoom(page: Page, roomName: string) {
     // Narrow-window case: temporarily expand to click the room.
     const vp = page.viewportSize();
     if (vp && vp.width < 768) {
-      await page.setViewportSize({ width: 1280, height: vp.height });
-      await selectListedRoom(page, roomName);
-      await page.setViewportSize({ width: vp.width, height: vp.height });
-      // `--chat-col` (the bubble width cap) is published from a
-      // ResizeObserver, so it lags the resize by a frame.
-      await page.evaluate(
-        () =>
-          new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-      );
+      await selectListedRoomWidened(page, roomName);
       return;
     }
   }

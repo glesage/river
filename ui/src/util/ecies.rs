@@ -184,14 +184,7 @@ mod tests {
     /// why the call site avoids it) don't trip the negative assertion.
     #[test]
     fn seal_for_room_call_sites_pinned() {
-        // Strip everything after the first `//` on each line so the
-        // assertions only see actual code, not commentary about it.
-        fn strip_line_comments(src: &str) -> String {
-            src.lines()
-                .map(|line| line.split_once("//").map(|(code, _)| code).unwrap_or(line))
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
+        use crate::util::source_scan::strip_line_comments;
 
         let nickname_src = strip_line_comments(include_str!(
             "../components/members/member_info_modal/nickname_field.rs"

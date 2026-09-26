@@ -1,9 +1,9 @@
 import { expect, Page } from "@playwright/test";
 
-// Steps shared by the message specs. Narrow-screen navigation stays in the
-// spec that needs it: opening the hamburger, or widening to reach the list
-// and restoring the viewport afterwards. So does anything the shell being
-// visible does not prove (composer, reply strip, scroll position).
+// Steps shared by the message specs. The choice of narrow-screen navigation
+// stays in the spec that needs it: opening the hamburger, or widening to reach
+// the list. So does anything the shell being visible does not prove (composer,
+// reply strip, scroll position).
 
 export async function waitForApp(page: Page) {
   await page.waitForSelector(".app-root", { timeout: 30_000 });
@@ -22,6 +22,23 @@ export async function selectListedRoom(page: Page, roomName: string) {
   await expect(page.getByRole("heading", { name: roomName })).toBeVisible({
     timeout: 5_000,
   });
+}
+
+/**
+ * Widen the viewport to 1280px so the room list is on screen, choose the room,
+ * then restore the viewport. Waits two frames before returning: `--chat-col`
+ * (the bubble width cap) is published from a ResizeObserver, so it lags the
+ * resize.
+ */
+export async function selectListedRoomWidened(page: Page, roomName: string) {
+  const vp = page.viewportSize();
+  if (!vp) throw new Error("selectListedRoomWidened needs a fixed viewport");
+  await page.setViewportSize({ width: 1280, height: vp.height });
+  await selectListedRoom(page, roomName);
+  await page.setViewportSize({ width: vp.width, height: vp.height });
+  await page.evaluate(
+    () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+  );
 }
 
 // Self owns Your Private Room; other example rooms may hide the composer

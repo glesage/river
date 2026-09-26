@@ -3,19 +3,12 @@ import { waitForApp } from "./example-room";
 import { openInviteViaDmPicker } from "./invite-picker";
 import { callRiverTest } from "./river-test";
 
-// Test hooks expose states unavailable in no-sync builds: room loading/migration,
-// an unsigned room awaiting its first GET, and an invite send held in flight.
-// Without holdInviteSend, no-sync sends finish too quickly to observe.
+// Test hooks expose states unavailable in no-sync builds: an unsigned room
+// awaiting its first GET, and an invite send held in flight. Without
+// holdInviteSend, no-sync sends finish too quickly to observe. The wave dots of
+// the rooms loading/migrating states are checked in rooms-loading-state.spec.ts.
 
 const SPINNER = ".animate-spin";
-
-async function expectWaveDots(page: Page, testid: string) {
-  const dots = page.getByTestId(testid);
-  await expect(dots).toBeVisible();
-  await expect(dots.locator(".river-flow-dot")).toHaveCount(10);
-  await expect(page.locator(SPINNER)).toHaveCount(0);
-}
-
 
 async function expectSmallDots(page: Page, scope: ReturnType<Page["locator"]>, testid: string) {
   const dots = scope.getByTestId(testid);
@@ -70,17 +63,6 @@ for (const { label, viewport, isMobile } of [
       await page.goto("/");
       await waitForApp(page);
     });
-
-    for (const state of ["loading", "migrating"] as const) {
-      test(`${state} rooms show wave dots, not a spinner`, async ({ page }) => {
-        await callRiverTest(page, "setRoomsLoadState", state);
-        await expectWaveDots(page, `conversation-rooms-${state}-dots`);
-        if (!isMobile) {
-          // Below 768px the rail is display:none.
-          await expectWaveDots(page, `room-list-${state}-dots`);
-        }
-      });
-    }
 
     test("a room waiting for its first sync shows small dots in its row and banner", async ({
       page,

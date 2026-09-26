@@ -89,6 +89,8 @@ test.describe("Toast", () => {
 
     await callRiverTest(page, "showToast", "Joined Your Private Room");
     await expect(page.getByTestId(TOAST)).toBeVisible();
+    // One host, so one toast: a second mount would paint a duplicate.
+    await expect(page.getByTestId(TOAST)).toHaveCount(1);
     await page.waitForTimeout(300);
     expect(await toastIsOnTop(page), "the modal must not paint over it").toBe(true);
   });

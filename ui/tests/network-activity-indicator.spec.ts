@@ -87,7 +87,9 @@ test.describe("Network activity indicator", () => {
     }
   });
 
-  test("the dots appear only after the 500ms debounce", async ({ page }) => {
+  test("the dots appear after the 500ms debounce, then hold for 1s with their reason", async ({
+    page,
+  }) => {
     await page.goto("/");
     await waitForApp(page);
     await callRiverTest(page, "setSyncStatus", "connected");
@@ -96,49 +98,38 @@ test.describe("Network activity indicator", () => {
       await page.evaluate(() => {
         const w = window as any;
         w.__t0 = performance.now();
-        w.__riverTest.beginUserAction();
+        w.__riverTest.beginUserAction("saving");
       });
+      const indicator = page.getByTestId(INDICATOR_TESTID);
+      await expect(indicator).toBeVisible();
+      await expect(indicator).toHaveAttribute("data-reason", "saving");
 
-      await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
+      // End at once, so the rest of the visible time is the hold.
+      await endUserAction(page);
+      // Without this wait, assertions could pass before a hold-less build unmounts.
+      await page.waitForTimeout(500);
+      await expect(indicator).toHaveCount(1);
+      await expect(indicator).toHaveAttribute("data-reason", "saving");
+
+      await expect(indicator).toHaveCount(0, { timeout: 3_000 });
 
       const t0 = await page.evaluate(() => (window as any).__t0);
-      const log = await recorder.read();
-      const shown = findTransition(log, true);
-      expect(shown).toBeTruthy();
-
-      const delta = shown!.t - t0;
-      // 5ms slack for timer rounding. t0 is taken before the hook's own
-      // `defer`, so the true gap can only be larger, never smaller.
-      expect(delta).toBeGreaterThanOrEqual(495);
-      // Generous upper bound so a stalled timer doesn't pass as "debounced".
-      expect(delta).toBeLessThan(1_500);
-    } finally {
-      await recorder.dispose();
-    }
-  });
-
-  test("once shown, the dots stay for at least 1s", async ({ page }) => {
-    await page.goto("/");
-    await waitForApp(page);
-    const recorder = await recordPresence(page);
-    try {
-      await startUserAction(page);
-      await expect(page.getByTestId(INDICATOR_TESTID)).toBeVisible();
-
-      await endUserAction(page);
-      await expect(page.getByTestId(INDICATOR_TESTID)).toHaveCount(0, {
-        timeout: 3_000,
-      });
-
       const log = await recorder.read();
       const shown = findTransition(log, true);
       expect(shown).toBeTruthy();
       const hidden = findTransition(log, false, shown!.t);
       expect(hidden).toBeTruthy();
 
-      const delta = hidden!.t - shown!.t;
-      expect(delta).toBeGreaterThanOrEqual(950);
-      expect(delta).toBeLessThan(2_000);
+      const debounce = shown!.t - t0;
+      // 5ms slack for timer rounding. t0 is taken before the hook's own
+      // `defer`, so the true gap can only be larger, never smaller.
+      expect(debounce).toBeGreaterThanOrEqual(495);
+      // Generous upper bound so a stalled timer doesn't pass as "debounced".
+      expect(debounce).toBeLessThan(1_500);
+
+      const visible = hidden!.t - shown!.t;
+      expect(visible).toBeGreaterThanOrEqual(950);
+      expect(visible).toBeLessThan(2_000);
     } finally {
       await recorder.dispose();
     }
@@ -315,24 +306,6 @@ test.describe("Network activity indicator", () => {
       await page.waitForTimeout(1_000);
       await expect(page.getByTestId(INDICATOR_TESTID), state).toHaveCount(0);
     }
-  });
-
-  test("the hold keeps the reason", async ({ page }) => {
-    await page.goto("/");
-    await waitForApp(page);
-
-    await startUserAction(page, "saving");
-    const indicator = page.getByTestId(INDICATOR_TESTID);
-    await expect(indicator).toBeVisible();
-    await expect(indicator).toHaveAttribute("data-reason", "saving");
-
-    await endUserAction(page);
-    // Without this wait, assertions could pass before a hold-less build unmounts.
-    await page.waitForTimeout(500);
-    await expect(indicator).toHaveCount(1);
-    await expect(indicator).toHaveAttribute("data-reason", "saving");
-
-    await expect(indicator).toHaveCount(0, { timeout: 3_000 });
   });
 
   test("background work never shows the primary dots", async ({ page }) => {

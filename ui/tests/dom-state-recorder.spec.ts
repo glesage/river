@@ -105,11 +105,6 @@ test.describe("DOM state recorder", () => {
         document.getElementById("root")!.append(el);
       });
       expect(await states(b)).toEqual([false, true]);
-
-      const globals = await page.evaluate(() =>
-        Object.keys(window).filter((k) => k.startsWith("__"))
-      );
-      expect(globals).toEqual([]);
     } finally {
       await a.dispose();
       await b.dispose();

@@ -30,6 +30,22 @@ async function setLoadState(page: Page, state: string) {
 
 const WELCOME = "Welcome to River";
 
+/** The state shows the wave dots, and no spinner is left anywhere. */
+async function expectWaveDots(page: Page, testid: string) {
+  const dots = page.getByTestId(testid);
+  await expect(dots).toBeVisible();
+  await expect(dots.locator(".river-flow-dot")).toHaveCount(10);
+  await expect(page.locator(".animate-spin")).toHaveCount(0);
+}
+
+async function expectStateWaveDots(page: Page, state: string, isMobile: boolean) {
+  await expectWaveDots(page, `conversation-rooms-${state}-dots`);
+  if (!isMobile) {
+    // Below 768px the rail is display:none.
+    await expectWaveDots(page, `room-list-${state}-dots`);
+  }
+}
+
 for (const { label, viewport, isMobile } of [
   // The mobile case is the reported bug…
   { label: "mobile", viewport: { width: 390, height: 844 }, isMobile: true },
@@ -65,6 +81,7 @@ for (const { label, viewport, isMobile } of [
       // is also the first browser coverage #397's rail states have ever had —
       // their absence is why #509 went unnoticed.
       await expect(page.getByTestId("room-list-loading")).toHaveCount(1);
+      await expectStateWaveDots(page, "loading", isMobile);
 
       // The bug: the false-empty invitation to create a room.
       await expect(page.getByText(WELCOME)).toHaveCount(0);
@@ -105,6 +122,7 @@ for (const { label, viewport, isMobile } of [
       await expect(migrating).toBeVisible({ timeout: 5_000 });
       await expect(migrating.getByText("Migrating your rooms…")).toBeVisible();
       await expect(page.getByTestId("room-list-migrating")).toHaveCount(1);
+      await expectStateWaveDots(page, "migrating", isMobile);
       await expect(page.getByText(WELCOME)).toHaveCount(0);
     });
 

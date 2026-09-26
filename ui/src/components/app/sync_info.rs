@@ -241,17 +241,14 @@ impl SyncInfo {
     }
 
     /// Synced rooms retry forever, but must not keep the activity dots running.
-    pub fn rooms_syncing_count(&self, is_live: impl Fn(&VerifyingKey) -> bool) -> usize {
-        self.map
-            .iter()
-            .filter(|(k, i)| {
-                matches!(
-                    i.sync_status,
-                    RoomSyncStatus::Disconnected | RoomSyncStatus::Subscribing
-                ) && i.failed_sync_attempts < MAX_SYNC_ATTEMPTS_BEFORE_ERROR
-                    && is_live(k)
-            })
-            .count()
+    pub fn has_syncing_rooms(&self, is_live: impl Fn(&VerifyingKey) -> bool) -> bool {
+        self.map.iter().any(|(k, i)| {
+            matches!(
+                i.sync_status,
+                RoomSyncStatus::Disconnected | RoomSyncStatus::Subscribing
+            ) && i.failed_sync_attempts < MAX_SYNC_ATTEMPTS_BEFORE_ERROR
+                && is_live(k)
+        })
     }
 
     pub fn get_owner_vk_for_instance_id(
@@ -716,34 +713,34 @@ mod tests {
     }
 
     #[test]
-    fn rooms_syncing_count_counts_disconnected_and_subscribing_live_rooms() {
-        let mut si = SyncInfo::new();
-        let statuses = [
-            RoomSyncStatus::Disconnected,
-            RoomSyncStatus::Subscribing,
-            RoomSyncStatus::Subscribed,
-            RoomSyncStatus::Error("x".to_string()),
+    fn has_syncing_rooms_is_true_only_for_disconnected_or_subscribing_live_rooms() {
+        let cases = [
+            (RoomSyncStatus::Disconnected, true),
+            (RoomSyncStatus::Subscribing, true),
+            (RoomSyncStatus::Subscribed, false),
+            (RoomSyncStatus::Error("x".to_string()), false),
         ];
-        for (seed, status) in (1..=4).zip(statuses) {
+        for (seed, (status, syncing)) in (1..=4).zip(cases) {
+            let mut si = SyncInfo::new();
             let owner = test_owner(seed);
             si.register_new_room(owner);
-            si.update_sync_status(&owner, status);
+            si.update_sync_status(&owner, status.clone());
+            assert_eq!(si.has_syncing_rooms(|_| true), syncing, "{status:?}");
         }
-        assert_eq!(si.rooms_syncing_count(|_| true), 2);
     }
 
     // Removed rooms retain SYNC_INFO entries; the timeout scan only walks ROOMS.
     #[test]
-    fn rooms_syncing_count_ignores_rooms_no_longer_in_rooms() {
+    fn has_syncing_rooms_ignores_rooms_no_longer_in_rooms() {
         let mut si = SyncInfo::new();
         let owner = test_owner(5);
         si.register_new_room(owner);
         si.update_sync_status(&owner, RoomSyncStatus::Subscribing);
-        assert_eq!(si.rooms_syncing_count(|_| false), 0);
+        assert!(!si.has_syncing_rooms(|_| false));
     }
 
     #[test]
-    fn rooms_syncing_count_stops_counting_after_the_retry_bound() {
+    fn has_syncing_rooms_stops_after_the_retry_bound() {
         let mut si = SyncInfo::new();
         let owner = test_owner(6);
         si.register_new_room(owner);
@@ -751,7 +748,7 @@ mod tests {
         for _ in 1..MAX_SYNC_ATTEMPTS_BEFORE_ERROR {
             si.record_failed_sync_attempt(&owner, false);
         }
-        assert_eq!(si.rooms_syncing_count(|_| true), 1);
+        assert!(si.has_syncing_rooms(|_| true));
 
         si.record_failed_sync_attempt(&owner, false);
         assert_eq!(
@@ -759,6 +756,6 @@ mod tests {
             RoomSyncStatus::Disconnected,
             "premise: a synced room stays Disconnected past the bound"
         );
-        assert_eq!(si.rooms_syncing_count(|_| true), 0);
+        assert!(!si.has_syncing_rooms(|_| true));
     }
 }

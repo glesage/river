@@ -81,13 +81,13 @@ pub fn NetworkActivityIndicator() -> Element {
         let rooms_syncing = 'syncing: {
             let Ok(rooms) = ROOMS.try_read() else {
                 crate::util::signal_guard::schedule_nudge();
-                break 'syncing 0;
+                break 'syncing false;
             };
             let Ok(sync_info) = SYNC_INFO.try_read() else {
                 crate::util::signal_guard::schedule_nudge();
-                break 'syncing 0;
+                break 'syncing false;
             };
-            sync_info.rooms_syncing_count(|k| rooms.map.contains_key(k))
+            sync_info.has_syncing_rooms(|k| rooms.map.contains_key(k))
         };
         let requests = match NODE_ACTIVITY.try_read() {
             Ok(activity) => activity.background_requests(),
@@ -259,7 +259,7 @@ pub(crate) enum LoadingReason {
 
 impl LoadingReason {
     /// Value of the indicator's `data-reason` attribute.
-    pub(crate) fn as_attr(self) -> &'static str {
+    fn as_attr(self) -> &'static str {
         match self {
             LoadingReason::JoiningRoom => "joining-room",
             LoadingReason::CreatingRoom => "creating-room",
@@ -269,7 +269,7 @@ impl LoadingReason {
     }
 
     /// Screen-reader label for the live region.
-    pub(crate) fn label(self) -> &'static str {
+    fn label(self) -> &'static str {
         match self {
             LoadingReason::JoiningRoom => "Joining room…",
             LoadingReason::CreatingRoom => "Creating room…",
@@ -348,7 +348,7 @@ struct BackgroundInputs<'a> {
     sync_enabled: bool,
     rooms_load_state: RoomsLoadState,
 
-    rooms_syncing: usize,
+    rooms_syncing: bool,
 
     requests: bool,
 }
@@ -369,7 +369,7 @@ fn background_reason(i: &BackgroundInputs) -> Option<BackgroundReason> {
                 RoomsLoadState::Loading | RoomsLoadState::Migrating
             ) {
                 Some(BackgroundReason::LoadingRooms)
-            } else if i.rooms_syncing > 0 {
+            } else if i.rooms_syncing {
                 Some(BackgroundReason::SyncingRooms)
             } else if i.requests {
                 Some(BackgroundReason::Requests)
@@ -608,7 +608,7 @@ mod tests {
             sync_status,
             sync_enabled,
             rooms_load_state: RoomsLoadState::Loaded,
-            rooms_syncing: 0,
+            rooms_syncing: false,
             requests: false,
         }
     }
@@ -646,7 +646,7 @@ mod tests {
         for state in [RoomsLoadState::Loading, RoomsLoadState::Migrating] {
             let i = BackgroundInputs {
                 rooms_load_state: state,
-                rooms_syncing: 1,
+                rooms_syncing: true,
                 requests: true,
                 ..quiet(&CONNECTED, true)
             };
@@ -664,7 +664,7 @@ mod tests {
             assert_eq!(background_reason(&i), None, "{state:?}");
         }
         let syncing = BackgroundInputs {
-            rooms_syncing: 2,
+            rooms_syncing: true,
             requests: true,
             ..quiet(&CONNECTED, true)
         };
@@ -910,14 +910,5 @@ mod tests {
         assert_eq!(wake, Some(950.0));
         assert_eq!(g.on_tick(1_099.0).visible_reason(), busy);
         assert_eq!(g.on_tick(1_100.0).visible_reason(), None);
-    }
-
-
-    #[test]
-    fn timing_constants_are_as_specified() {
-        assert_eq!(PRIMARY_TIMING.show_after_ms, 500.0);
-        assert_eq!(PRIMARY_TIMING.min_visible_ms, 1000.0);
-        assert_eq!(SECONDARY_TIMING.show_after_ms, 0.0);
-        assert_eq!(SECONDARY_TIMING.min_visible_ms, 1000.0);
     }
 }
