@@ -1,0 +1,16 @@
+{
+  "before": {
+    "url": "http://127.0.0.1:55483/",
+    "root": "/Users/glesage/orca/workspaces/river/reaction-screenshots-before/target/dx/river-ui/release/web/public",
+    "wasm": {
+      "river-ui_bg-dxh1c6c129e31ca568.wasm": "dbb1694808cf346ee922d66a8cf77c99f94d2534e0672947b088b7b0c98ab74e"
+    }
+  },
+  "after": {
+    "url": "http://127.0.0.1:55484/",
+    "root": "/Users/glesage/orca/workspaces/river/Accessible-and-stable-reaction-actions/target/dx/river-ui/release/web/public",
+    "wasm": {
+      "river-ui_bg-dxh857fde45371385e.wasm": "77cb33f1d4bcafac857b3a272f95721e7baac6e58371ea0edbf33e572ff3de0c"
+    }
+  }
+}

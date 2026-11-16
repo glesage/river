@@ -1,0 +1,1240 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>River reaction actions — before and after</title><style>
+*{box-sizing:border-box}body{margin:0;background:var(--background,#f6f7fa);color:var(--foreground,#17202c);font:14px/1.5 var(--font-sans,system-ui,sans-serif)}main{max-width:1500px;margin:auto;padding:28px 24px 45px}h1{font-size:30px;line-height:1.15;margin:0 0 12px;letter-spacing:-.03em}h2{font-size:19px;margin:0 0 4px}p{margin:8px 0 16px}.muted,summary{color:var(--muted-foreground,#5e6875)}.meta{display:flex;gap:9px;flex-wrap:wrap;margin:15px 0}.badge{border:1px solid var(--border,#dbe0e8);border-radius:20px;padding:3px 10px;background:var(--card,#fff);font-size:12px}code{font:12px var(--font-mono,monospace)}nav{display:flex;gap:6px;flex-wrap:wrap;position:sticky;top:0;background:var(--background,#f6f7fa);padding:12px 0;z-index:3}button{font:inherit;color:var(--foreground,#17202c);border:1px solid var(--border,#dbe0e8);background:var(--card,#fff);border-radius:8px;padding:6px 11px;cursor:pointer}button.active,button:hover{background:var(--accent,#e5edff);color:var(--accent-foreground,#173b82)}article{margin:16px 0 22px;border:1px solid var(--border,#dbe0e8);border-radius:14px;background:var(--card,#fff);padding:18px;scroll-margin-top:70px}article[hidden]{display:none}.pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:12px 0}.shot{margin:0;min-width:0}.label{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:650;margin:0 0 8px}.label b{padding:3px 8px;border-radius:5px;background:var(--muted,#edf0f5)}.shot img{display:block;width:100%;height:auto;border:1px solid var(--border,#dbe0e8);background:white;border-radius:7px}.shot.phone img{width:auto;max-width:100%;margin:0 auto}.shot.phone{background:var(--background,#f6f7fa);border-radius:8px;padding:10px}.shot.phone .label{max-width:390px;margin:0 auto 8px}.note{font-size:13px;color:var(--muted-foreground,#5e6875);margin:3px 0}a{color:var(--primary,#2456b5);text-underline-offset:2px}.facts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}.facts pre{overflow:auto;background:var(--muted,#edf0f5);padding:10px;border-radius:7px;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}details{font-size:12px;margin-top:12px}summary{cursor:pointer}table{border-collapse:collapse;width:100%;font-size:12px}td,th{text-align:left;padding:7px 9px;border-bottom:1px solid var(--border,#dbe0e8)}.coverage{padding:18px;border:1px solid var(--border,#dbe0e8);border-radius:14px;background:var(--card,#fff);margin-top:26px}.kicker{font:600 11px var(--font-mono,monospace);text-transform:uppercase;letter-spacing:.08em;color:var(--muted-foreground,#5e6875);margin-bottom:8px}.counter{margin-left:auto;align-self:center;font-size:12px;color:var(--muted-foreground,#5e6875)}@media(max-width:650px){main{padding:18px 12px}.pair,.facts{grid-template-columns:1fr}h1{font-size:25px}article{padding:12px}nav{position:static}}@media print{nav,button{display:none}article{break-inside:avoid}.pair{grid-template-columns:1fr 1fr}main{padding:0}}
+</style><main><div class="kicker">River · actual browser screenshots</div><h1>Reaction actions: before and after</h1><p class="muted">19 matched comparisons from the actual parent and finished builds. Images are unaltered browser screenshots; each also has a full-window capture.</p><div class="meta"><span class="badge">Before <code>fc92f19b</code></span><span class="badge">After <code>b5ea6bcb</code></span><span class="badge">Chromium 153.0.8010.12</span><span class="badge">Same fixture seed · fixed UTC clock · 1× pixels</span></div><nav><button data-filter="All" class="active">All</button><button data-filter="Appearance" class="">Appearance</button><button data-filter="Activation" class="">Activation</button><button data-filter="List actions" class="">List actions</button><button data-filter="Mobile" class="">Mobile</button><button data-filter="Ordering" class="">Ordering</button><button data-filter="Accessibility" class="">Accessibility</button><button data-filter="Lifecycle" class="">Lifecycle</button><button data-filter="Layout" class="">Layout</button><span class="counter"></span></nav><article data-group="Appearance" id="01-pills-desktop"><div class="kicker">01 · Appearance</div><h2>Pill appearance and selected counts</h2><p class="note">The compact pill design, selected tint, and visible counts are retained.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · light</span><a href="01-pills-desktop/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="01-pills-desktop/before.png" alt="Before: Pill appearance and selected counts" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · light</span><a href="01-pills-desktop/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="01-pills-desktop/after.png" alt="After: Pill appearance and selected counts" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀2&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: true
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;reaction-chip&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;❤️, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀2&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 2 reactions&quot;,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: true
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;reaction-chip&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Activation" id="02-keyboard-enter"><div class="kicker">02 · Activation</div><h2>Enter inspects instead of reacting</h2><p class="note">Same Enter key: before adds your reaction; after opens the reactor list without changing the count.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · light</span><a href="02-keyboard-enter/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="02-keyboard-enter/before.png" alt="Before: Enter inspects instead of reacting" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · light</span><a href="02-keyboard-enter/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="02-keyboard-enter/after.png" alt="After: Enter inspects instead of reacting" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀2&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: true
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;reaction-chip&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Activation" id="03-keyboard-space-selected"><div class="kicker">03 · Activation</div><h2>Space preserves your reaction while inspecting</h2><p class="note">Same Space key on your sole reaction: before removes it; after opens the explicit Remove action.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · light</span><a href="03-keyboard-space-selected/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="03-keyboard-space-selected/before.png" alt="Before: Space preserves your reaction while inspecting" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · light</span><a href="03-keyboard-space-selected/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="03-keyboard-space-selected/after.png" alt="After: Space preserves your reaction while inspecting" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;message-react-button&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;👍, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="List actions" id="04-list-react"><div class="kicker">04 · List actions</div><h2>Explicit React action in the reactor list</h2><p class="note">Same Shift+Enter inspection gesture on desktop: the after list offers React with 🦀.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · light</span><a href="04-list-react/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="04-list-react/before.png" alt="Before: Explicit React action in the reactor list" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · light</span><a href="04-list-react/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="04-list-react/after.png" alt="After: Explicit React action in the reactor list" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="List actions" id="05-list-switch"><div class="kicker">05 · List actions</div><h2>Explicit Switch action in the reactor list</h2><p class="note">When you selected another emoji, the after list offers Switch to 🦀.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · light</span><a href="05-list-switch/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="05-list-switch/before.png" alt="Before: Explicit Switch action in the reactor list" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · light</span><a href="05-list-switch/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="05-list-switch/after.png" alt="After: Explicit Switch action in the reactor list" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;👍, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="List actions" id="06-list-remove"><div class="kicker">06 · List actions</div><h2>Explicit Remove remains available</h2><p class="note">Both versions show Remove for your own emoji; native pressed/expanded semantics are improved after.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · light</span><a href="06-list-remove/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="06-list-remove/before.png" alt="Before: Explicit Remove remains available" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · light</span><a href="06-list-remove/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="06-list-remove/after.png" alt="After: Explicit Remove remains available" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;👍, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Mobile" id="07-phone-tap"><div class="kicker">07 · Mobile</div><h2>A phone tap inspects who reacted</h2><p class="note">Same real touch tap: before reacts immediately; after shows the names and explicit React action.</p><div class="pair"><figure class="shot phone"><figcaption class="label"><b>Before · fc92f19b</b><span>390px · light</span><a href="07-phone-tap/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="07-phone-tap/before.png" alt="Before: A phone tap inspects who reacted" loading="lazy"></figure><figure class="shot phone"><figcaption class="label"><b>After · b5ea6bcb</b><span>390px · light</span><a href="07-phone-tap/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="07-phone-tap/after.png" alt="After: A phone tap inspects who reacted" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀2&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: true
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;reaction-chip&quot;,
+  &quot;pointer&quot;: &quot;coarse&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;coarse&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Mobile" id="08-phone-tap-selected"><div class="kicker">08 · Mobile</div><h2>A phone tap no longer removes your reaction</h2><p class="note">Same real tap on your sole chip: before removes it; after opens the list with Remove.</p><div class="pair"><figure class="shot phone"><figcaption class="label"><b>Before · fc92f19b</b><span>390px · light</span><a href="08-phone-tap-selected/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="08-phone-tap-selected/before.png" alt="Before: A phone tap no longer removes your reaction" loading="lazy"></figure><figure class="shot phone"><figcaption class="label"><b>After · b5ea6bcb</b><span>390px · light</span><a href="08-phone-tap-selected/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="08-phone-tap-selected/after.png" alt="After: A phone tap no longer removes your reaction" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;BODY&quot;,
+  &quot;pointer&quot;: &quot;coarse&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;👍, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;coarse&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Mobile" id="09-tablet-touch"><div class="kicker">09 · Mobile</div><h2>Touch inspection also works at tablet width</h2><p class="note">Touch policy is independent of screen width. The tablet tap now inspects too.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1024px · light</span><a href="09-tablet-touch/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="09-tablet-touch/before.png" alt="Before: Touch inspection also works at tablet width" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1024px · light</span><a href="09-tablet-touch/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="09-tablet-touch/after.png" alt="After: Touch inspection also works at tablet width" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀2&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: true
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;reaction-chip&quot;,
+  &quot;pointer&quot;: &quot;coarse&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;coarse&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Ordering" id="10-standing-order"><div class="kicker">10 · Ordering</div><h2>Earliest standing reaction determines emoji order</h2><p class="note">Identical timed actions: 🦀 first, then 🔥, then ❤️. Before sorts alphabetically; after retains chronological standing order.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · light</span><a href="10-standing-order/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="10-standing-order/before.png" alt="Before: Earliest standing reaction determines emoji order" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · light</span><a href="10-standing-order/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="10-standing-order/after.png" alt="After: Earliest standing reaction determines emoji order" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🔥1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;message-react-button&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🔥1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🔥, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;❤️, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;message-react-button&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Ordering" id="11-remove-readd-order"><div class="kicker">11 · Ordering</div><h2>Remove and re-add starts a new interval</h2><p class="note">After removing and re-adding 🔥, it moves behind the still-standing 🦀 and ❤️. Before stays alphabetical.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · light</span><a href="11-remove-readd-order/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="11-remove-readd-order/before.png" alt="Before: Remove and re-add starts a new interval" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · light</span><a href="11-remove-readd-order/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="11-remove-readd-order/after.png" alt="After: Remove and re-add starts a new interval" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🔥1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;message-react-button&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;❤️, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🔥1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🔥, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;message-react-button&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Accessibility" id="12-keyboard-focus"><div class="kicker">12 · Accessibility</div><h2>Visible native-button keyboard focus</h2><p class="note">Focus ring on the same chip. The accompanying DOM facts show the native button and descriptive accessible name.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · light</span><a href="12-keyboard-focus/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="12-keyboard-focus/before.png" alt="Before: Visible native-button keyboard focus" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · light</span><a href="12-keyboard-focus/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="12-keyboard-focus/after.png" alt="After: Visible native-button keyboard focus" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: true
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;reaction-chip&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: true
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;reaction-chip&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Accessibility" id="13-direct-removal-focus"><div class="kicker">13 · Accessibility</div><h2>Direct last-chip removal returns focus to React</h2><p class="note">Same mouse removal, then Shift to reveal the focus position. The after version leaves a reachable persistent React control.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · light</span><a href="13-direct-removal-focus/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="13-direct-removal-focus/before.png" alt="Before: Direct last-chip removal returns focus to React" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · light</span><a href="13-direct-removal-focus/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="13-direct-removal-focus/after.png" alt="After: Direct last-chip removal returns focus to React" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;BODY&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;message-react-button&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Lifecycle" id="14-list-handoff"><div class="kicker">14 · Lifecycle</div><h2>Only the latest reactor list owns inspection</h2><p class="note">Keyboard inspection moves between two author groups. Before can leave both lists open; after closes the old list and focuses the latest one.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · light</span><a href="14-list-handoff/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="14-list-handoff/before.png" alt="Before: Only the latest reactor list owns inspection" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · light</span><a href="14-list-handoff/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="14-list-handoff/after.png" alt="After: Only the latest reactor list owns inspection" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 2,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;❤️, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Layout" id="15-dense-phone-light"><div class="kicker">15 · Layout</div><h2>320px received-message wrapping in light mode</h2><p class="note">Twelve chips still wrap inside the message column with one reachable React control.</p><div class="pair"><figure class="shot phone"><figcaption class="label"><b>Before · fc92f19b</b><span>320px · light</span><a href="15-dense-phone-light/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="15-dense-phone-light/before.png" alt="Before: 320px received-message wrapping in light mode" loading="lazy"></figure><figure class="shot phone"><figcaption class="label"><b>After · b5ea6bcb</b><span>320px · light</span><a href="15-dense-phone-light/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="15-dense-phone-light/after.png" alt="After: 320px received-message wrapping in light mode" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;✅1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🎉1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;💯1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🔥1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;😀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🙌1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🚀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🤔1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;BODY&quot;,
+  &quot;pointer&quot;: &quot;coarse&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;✅1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;✅, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;❤️, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🎉1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🎉, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;👀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;👍, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;💯1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;💯, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🔥1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🔥, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;😀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;😀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🙌1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🙌, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🚀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🚀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🤔1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🤔, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;BODY&quot;,
+  &quot;pointer&quot;: &quot;coarse&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Layout" id="16-dense-phone-dark"><div class="kicker">16 · Layout</div><h2>320px received-message wrapping in dark mode</h2><p class="note">The existing dark palette, count contrast, and chip sizes are preserved.</p><div class="pair"><figure class="shot phone"><figcaption class="label"><b>Before · fc92f19b</b><span>320px · dark</span><a href="16-dense-phone-dark/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="16-dense-phone-dark/before.png" alt="Before: 320px received-message wrapping in dark mode" loading="lazy"></figure><figure class="shot phone"><figcaption class="label"><b>After · b5ea6bcb</b><span>320px · dark</span><a href="16-dense-phone-dark/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="16-dense-phone-dark/after.png" alt="After: 320px received-message wrapping in dark mode" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;✅1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🎉1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;💯1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🔥1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;😀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🙌1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🚀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🤔1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;BODY&quot;,
+  &quot;pointer&quot;: &quot;coarse&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;✅1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;✅, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;❤️, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🎉1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🎉, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;👀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;👍, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;💯1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;💯, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🔥1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🔥, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;😀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;😀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🙌1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🙌, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🚀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🚀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🤔1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🤔, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;BODY&quot;,
+  &quot;pointer&quot;: &quot;coarse&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="List actions" id="17-dark-switch"><div class="kicker">17 · List actions</div><h2>The explicit Switch action in dark mode</h2><p class="note">The new list action uses the normal theme text and surface tokens.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · dark</span><a href="17-dark-switch/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="17-dark-switch/before.png" alt="Before: The explicit Switch action in dark mode" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · dark</span><a href="17-dark-switch/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="17-dark-switch/after.png" alt="After: The explicit Switch action in dark mode" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;true&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;👍, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 1,
+  &quot;focus&quot;: &quot;reaction-owners&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Layout" id="18-own-dense-phone"><div class="kicker">18 · Layout</div><h2>320px own-message wrapping</h2><p class="note">Your own row keeps its tint and footer geometry with dense native reaction buttons.</p><div class="pair"><figure class="shot phone"><figcaption class="label"><b>Before · fc92f19b</b><span>320px · light</span><a href="18-own-dense-phone/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="18-own-dense-phone/before.png" alt="Before: 320px own-message wrapping" loading="lazy"></figure><figure class="shot phone"><figcaption class="label"><b>After · b5ea6bcb</b><span>320px · light</span><a href="18-own-dense-phone/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="18-own-dense-phone/after.png" alt="After: 320px own-message wrapping" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;✅1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🎉1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;💯1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🔥1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;😀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🙌1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🚀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🤔1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;message-input&quot;,
+  &quot;pointer&quot;: &quot;coarse&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;✅1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;✅, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;❤️, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🎉1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🎉, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;👀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;👍1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;👍, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;💯1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;💯, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🔥1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🔥, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;😀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;😀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🙌1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🙌, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🚀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🚀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🤔1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🤔, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;message-input&quot;,
+  &quot;pointer&quot;: &quot;coarse&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><article data-group="Ordering" id="19-pending-order"><div class="kicker">19 · Ordering</div><h2>Optimistic order while signing is pending</h2><p class="note">Signing is held after the pick: the after UI appends the pending 🔥 without disturbing standing 🦀 and ❤️.</p><div class="pair"><figure class="shot "><figcaption class="label"><b>Before · fc92f19b</b><span>1280px · light</span><a href="19-pending-order/before-full.png" target="_blank">Full UI ↗</a></figcaption><img src="19-pending-order/before.png" alt="Before: Optimistic order while signing is pending" loading="lazy"></figure><figure class="shot "><figcaption class="label"><b>After · b5ea6bcb</b><span>1280px · light</span><a href="19-pending-order/after-full.png" target="_blank">Full UI ↗</a></figcaption><img src="19-pending-order/after.png" alt="After: Optimistic order while signing is pending" loading="lazy"></figure></div><details><summary>DOM / accessibility facts</summary><div class="facts"><div><b>Before</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🔥1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;SPAN&quot;,
+      &quot;aria-label&quot;: null,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: null,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;message-react-button&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div><div><b>After</b><pre>{
+  &quot;chips&quot;: [
+    {
+      &quot;text&quot;: &quot;🦀1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🦀, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;❤️1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;❤️, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;false&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    },
+    {
+      &quot;text&quot;: &quot;🔥1&quot;,
+      &quot;tag&quot;: &quot;BUTTON&quot;,
+      &quot;aria-label&quot;: &quot;🔥, 1 reaction&quot;,
+      &quot;aria-pressed&quot;: &quot;true&quot;,
+      &quot;aria-expanded&quot;: &quot;false&quot;,
+      &quot;focused&quot;: false
+    }
+  ],
+  &quot;reactorLists&quot;: 0,
+  &quot;focus&quot;: &quot;message-react-button&quot;,
+  &quot;pointer&quot;: &quot;fine&quot;,
+  &quot;overflow&quot;: false
+}</pre></div></div></details></article><section class="coverage"><h2>Coverage and interpretation</h2><p class="muted">This commit improves interaction and accessibility rather than redesigning the chat. Unchanged-looking pairs intentionally document the preserved appearance. Screen-reader-only semantics are listed beneath each pair.</p><table><thead><tr><th>Change</th><th>Comparisons</th></tr></thead><tbody><tr><td>Native chip buttons, labels, pressed/expanded state, keyboard behavior</td><td>01, 02, 03, 12</td></tr><tr><td>Explicit React / Switch / Remove list actions</td><td>04, 05, 06, 17</td></tr><tr><td>Phone and tablet touch inspection</td><td>07, 08, 09</td></tr><tr><td>Standing reaction order, removal / re-add, optimistic pending order</td><td>10, 11, 19</td></tr><tr><td>Last-chip focus fallback and exclusive list handoff</td><td>13, 14</td></tr><tr><td>Dense wrapping, own-row tint, light / dark themes</td><td>15, 16, 18</td></tr></tbody></table><p class="muted">Internal-only changes — shared close/showing/focus helpers, private replay and late-secret handling, signed-fixture and test refactors, visibility narrowing, and documentation — have no separate static visual difference. Race and cancellation guarantees are covered by the recorded browser/native tests and mutation checks, not inferred from still images.</p><details><summary>Reproduction and build provenance</summary><p>Fresh static example-data/no-sync builds of both commits, separate unused loopback ports, exact bundle hashes in builds.json. No Freenet node or live user data. Each isolated browser context receives the same deterministic fixture entropy and clock; wall-clock timers still run normally. Fixture hooks prepare states; displayed controls and actions are real application UI. Capture script: capture.cjs. Full machine-readable screenshot state: manifest.json.</p><pre>{
+  &quot;before&quot;: {
+    &quot;url&quot;: &quot;http://127.0.0.1:55483/&quot;,
+    &quot;root&quot;: &quot;/Users/glesage/orca/workspaces/river/reaction-screenshots-before/target/dx/river-ui/release/web/public&quot;,
+    &quot;wasm&quot;: {
+      &quot;river-ui_bg-dxh1c6c129e31ca568.wasm&quot;: &quot;dbb1694808cf346ee922d66a8cf77c99f94d2534e0672947b088b7b0c98ab74e&quot;
+    }
+  },
+  &quot;after&quot;: {
+    &quot;url&quot;: &quot;http://127.0.0.1:55484/&quot;,
+    &quot;root&quot;: &quot;/Users/glesage/orca/workspaces/river/Accessible-and-stable-reaction-actions/target/dx/river-ui/release/web/public&quot;,
+    &quot;wasm&quot;: {
+      &quot;river-ui_bg-dxh857fde45371385e.wasm&quot;: &quot;77cb33f1d4bcafac857b3a272f95721e7baac6e58371ea0edbf33e572ff3de0c&quot;
+    }
+  }
+}</pre></details></section></main><script>const buttons=[...document.querySelectorAll('[data-filter]')],cards=[...document.querySelectorAll('article')];function select(g){for(const b of buttons)b.classList.toggle('active',b.dataset.filter===g);for(const c of cards)c.hidden=g!=='All'&&c.dataset.group!==g;document.querySelector('.counter').textContent=cards.filter(c=>!c.hidden).length+' comparisons'}buttons.forEach(b=>b.onclick=()=>select(b.dataset.filter));select('All')</script></html>

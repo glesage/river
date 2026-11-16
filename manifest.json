@@ -1,0 +1,2507 @@
+{
+  "commits": {
+    "before": "fc92f19bd64bed0860fa7f0b6864333a9bd1149b",
+    "after": "b5ea6bcbce5125317a29402e8d670f8f598a8e38"
+  },
+  "fixedClock": "2026-11-16T12:00:00.000Z",
+  "browser": "153.0.8010.12",
+  "scenarios": [
+    {
+      "id": "01-pills-desktop",
+      "title": "Pill appearance and selected counts",
+      "group": "Appearance",
+      "note": "The compact pill design, selected tint, and visible counts are retained.",
+      "versions": {
+        "before": {
+          "image": "01-pills-desktop/before.png",
+          "full": "01-pills-desktop/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender B",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd802",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "true",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender A, You (click to remove)",
+              "focused": true
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "reaction-chip",
+            "text": "\ud83e\udd802",
+            "tag": "SPAN"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "01-pills-desktop/after.png",
+          "full": "01-pills-desktop/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\u2764\ufe0f",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\u2764\ufe0f, 1 reaction",
+              "title": "Test Sender B. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd802",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "true",
+              "expanded": "false",
+              "label": "\ud83e\udd80, 2 reactions",
+              "title": "Test Sender A, You. Click to remove; tap or use the keyboard for details.",
+              "focused": true
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "reaction-chip",
+            "text": "\ud83e\udd802",
+            "tag": "BUTTON"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        }
+      }
+    },
+    {
+      "id": "02-keyboard-enter",
+      "title": "Enter inspects instead of reacting",
+      "group": "Activation",
+      "note": "Same Enter key: before adds your reaction; after opens the reactor list without changing the count.",
+      "versions": {
+        "before": {
+          "image": "02-keyboard-enter/before.png",
+          "full": "02-keyboard-enter/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd802",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "true",
+              "expanded": null,
+              "label": null,
+              "title": "You, Test Sender B (click to remove)",
+              "focused": true
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "reaction-chip",
+            "text": "\ud83e\udd802",
+            "tag": "SPAN"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "02-keyboard-enter/after.png",
+          "full": "02-keyboard-enter/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "true",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender B. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "React with \ud83e\udd80\nTest Sender B",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "React with \ud83e\udd80Test Sender B",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        }
+      }
+    },
+    {
+      "id": "03-keyboard-space-selected",
+      "title": "Space preserves your reaction while inspecting",
+      "group": "Activation",
+      "note": "Same Space key on your sole reaction: before removes it; after opens the explicit Remove action.",
+      "versions": {
+        "before": {
+          "image": "03-keyboard-space-selected/before.png",
+          "full": "03-keyboard-space-selected/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [],
+          "lists": [],
+          "focus": {
+            "testid": "message-react-button",
+            "text": "",
+            "tag": "BUTTON"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "03-keyboard-space-selected/after.png",
+          "full": "03-keyboard-space-selected/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udc4d",
+              "pressed": "true",
+              "expanded": "true",
+              "label": "\ud83d\udc4d, 1 reaction",
+              "title": "You. Click to remove; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "Remove\nYou",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "RemoveYou",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        }
+      }
+    },
+    {
+      "id": "04-list-react",
+      "title": "Explicit React action in the reactor list",
+      "group": "List actions",
+      "note": "Same Shift+Enter inspection gesture on desktop: the after list offers React with \ud83e\udd80.",
+      "versions": {
+        "before": {
+          "image": "04-list-react/before.png",
+          "full": "04-list-react/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": "true",
+              "label": null,
+              "title": "Test Sender B",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "Test Sender B",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "Test Sender B",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "04-list-react/after.png",
+          "full": "04-list-react/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "true",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender B. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "React with \ud83e\udd80\nTest Sender B",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "React with \ud83e\udd80Test Sender B",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        }
+      }
+    },
+    {
+      "id": "05-list-switch",
+      "title": "Explicit Switch action in the reactor list",
+      "group": "List actions",
+      "note": "When you selected another emoji, the after list offers Switch to \ud83e\udd80.",
+      "versions": {
+        "before": {
+          "image": "05-list-switch/before.png",
+          "full": "05-list-switch/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "true",
+              "expanded": null,
+              "label": null,
+              "title": "You (click to remove)",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": "true",
+              "label": null,
+              "title": "Test Sender B",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "Test Sender B",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "Test Sender B",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "05-list-switch/after.png",
+          "full": "05-list-switch/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "true",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender B. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udc4d",
+              "pressed": "true",
+              "expanded": "false",
+              "label": "\ud83d\udc4d, 1 reaction",
+              "title": "You. Click to remove; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "Switch to \ud83e\udd80\nTest Sender B",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "Switch to \ud83e\udd80Test Sender B",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        }
+      }
+    },
+    {
+      "id": "06-list-remove",
+      "title": "Explicit Remove remains available",
+      "group": "List actions",
+      "note": "Both versions show Remove for your own emoji; native pressed/expanded semantics are improved after.",
+      "versions": {
+        "before": {
+          "image": "06-list-remove/before.png",
+          "full": "06-list-remove/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "true",
+              "expanded": "true",
+              "label": null,
+              "title": "You (click to remove)",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "Remove\nYou",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "RemoveYou",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "06-list-remove/after.png",
+          "full": "06-list-remove/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udc4d",
+              "pressed": "true",
+              "expanded": "true",
+              "label": "\ud83d\udc4d, 1 reaction",
+              "title": "You. Click to remove; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "Remove\nYou",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "RemoveYou",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        }
+      }
+    },
+    {
+      "id": "07-phone-tap",
+      "title": "A phone tap inspects who reacted",
+      "group": "Mobile",
+      "note": "Same real touch tap: before reacts immediately; after shows the names and explicit React action.",
+      "versions": {
+        "before": {
+          "image": "07-phone-tap/before.png",
+          "full": "07-phone-tap/before-full.png",
+          "viewport": {
+            "width": 390,
+            "height": 800
+          },
+          "clip": {
+            "x": 0,
+            "y": 79,
+            "width": 390,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd802",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "true",
+              "expanded": null,
+              "label": null,
+              "title": "You, Test Sender B (click to remove)",
+              "focused": true
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "reaction-chip",
+            "text": "\ud83e\udd802",
+            "tag": "SPAN"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "coarse"
+        },
+        "after": {
+          "image": "07-phone-tap/after.png",
+          "full": "07-phone-tap/after-full.png",
+          "viewport": {
+            "width": 390,
+            "height": 800
+          },
+          "clip": {
+            "x": 0,
+            "y": 79,
+            "width": 390,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "true",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender B. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "React with \ud83e\udd80\nTest Sender B",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "React with \ud83e\udd80Test Sender B",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "coarse"
+        }
+      }
+    },
+    {
+      "id": "08-phone-tap-selected",
+      "title": "A phone tap no longer removes your reaction",
+      "group": "Mobile",
+      "note": "Same real tap on your sole chip: before removes it; after opens the list with Remove.",
+      "versions": {
+        "before": {
+          "image": "08-phone-tap-selected/before.png",
+          "full": "08-phone-tap-selected/before-full.png",
+          "viewport": {
+            "width": 390,
+            "height": 800
+          },
+          "clip": {
+            "x": 0,
+            "y": 79,
+            "width": 390,
+            "height": 350
+          },
+          "chips": [],
+          "lists": [],
+          "focus": {
+            "testid": null,
+            "text": "RiverRiverRoomsTeam Chat Room11Public Discussion Room13Your Private Ro",
+            "tag": "BODY"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "coarse"
+        },
+        "after": {
+          "image": "08-phone-tap-selected/after.png",
+          "full": "08-phone-tap-selected/after-full.png",
+          "viewport": {
+            "width": 390,
+            "height": 800
+          },
+          "clip": {
+            "x": 0,
+            "y": 79,
+            "width": 390,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udc4d",
+              "pressed": "true",
+              "expanded": "true",
+              "label": "\ud83d\udc4d, 1 reaction",
+              "title": "You. Click to remove; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "Remove\nYou",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "RemoveYou",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "coarse"
+        }
+      }
+    },
+    {
+      "id": "09-tablet-touch",
+      "title": "Touch inspection also works at tablet width",
+      "group": "Mobile",
+      "note": "Touch policy is independent of screen width. The tablet tap now inspects too.",
+      "versions": {
+        "before": {
+          "image": "09-tablet-touch/before.png",
+          "full": "09-tablet-touch/before-full.png",
+          "viewport": {
+            "width": 1024,
+            "height": 800
+          },
+          "clip": {
+            "x": 172,
+            "y": 75,
+            "width": 711,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd802",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "true",
+              "expanded": null,
+              "label": null,
+              "title": "You, Test Sender B (click to remove)",
+              "focused": true
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "reaction-chip",
+            "text": "\ud83e\udd802",
+            "tag": "SPAN"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "coarse"
+        },
+        "after": {
+          "image": "09-tablet-touch/after.png",
+          "full": "09-tablet-touch/after-full.png",
+          "viewport": {
+            "width": 1024,
+            "height": 800
+          },
+          "clip": {
+            "x": 172,
+            "y": 75,
+            "width": 711,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "true",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender B. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "React with \ud83e\udd80\nTest Sender B",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "React with \ud83e\udd80Test Sender B",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "coarse"
+        }
+      }
+    },
+    {
+      "id": "10-standing-order",
+      "title": "Earliest standing reaction determines emoji order",
+      "group": "Ordering",
+      "note": "Identical timed actions: \ud83e\udd80 first, then \ud83d\udd25, then \u2764\ufe0f. Before sorts alphabetically; after retains chronological standing order.",
+      "versions": {
+        "before": {
+          "image": "10-standing-order/before.png",
+          "full": "10-standing-order/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender A",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udd251",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "true",
+              "expanded": null,
+              "label": null,
+              "title": "You (click to remove)",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender B",
+              "focused": false
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "message-react-button",
+            "text": "",
+            "tag": "BUTTON"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "10-standing-order/after.png",
+          "full": "10-standing-order/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender B. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udd251",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udd25",
+              "pressed": "true",
+              "expanded": "false",
+              "label": "\ud83d\udd25, 1 reaction",
+              "title": "You. Click to remove; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\u2764\ufe0f",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\u2764\ufe0f, 1 reaction",
+              "title": "Test Sender A. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "message-react-button",
+            "text": "",
+            "tag": "BUTTON"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        }
+      }
+    },
+    {
+      "id": "11-remove-readd-order",
+      "title": "Remove and re-add starts a new interval",
+      "group": "Ordering",
+      "note": "After removing and re-adding \ud83d\udd25, it moves behind the still-standing \ud83e\udd80 and \u2764\ufe0f. Before stays alphabetical.",
+      "versions": {
+        "before": {
+          "image": "11-remove-readd-order/before.png",
+          "full": "11-remove-readd-order/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender A",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udd251",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "true",
+              "expanded": null,
+              "label": null,
+              "title": "You (click to remove)",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender B",
+              "focused": false
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "message-react-button",
+            "text": "",
+            "tag": "BUTTON"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "11-remove-readd-order/after.png",
+          "full": "11-remove-readd-order/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender B. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\u2764\ufe0f",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\u2764\ufe0f, 1 reaction",
+              "title": "Test Sender A. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udd251",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udd25",
+              "pressed": "true",
+              "expanded": "false",
+              "label": "\ud83d\udd25, 1 reaction",
+              "title": "You. Click to remove; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "message-react-button",
+            "text": "",
+            "tag": "BUTTON"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        }
+      }
+    },
+    {
+      "id": "12-keyboard-focus",
+      "title": "Visible native-button keyboard focus",
+      "group": "Accessibility",
+      "note": "Focus ring on the same chip. The accompanying DOM facts show the native button and descriptive accessible name.",
+      "versions": {
+        "before": {
+          "image": "12-keyboard-focus/before.png",
+          "full": "12-keyboard-focus/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender B",
+              "focused": true
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "reaction-chip",
+            "text": "\ud83e\udd801",
+            "tag": "SPAN"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "12-keyboard-focus/after.png",
+          "full": "12-keyboard-focus/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender B. Click to react; tap or use the keyboard for details.",
+              "focused": true
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "reaction-chip",
+            "text": "\ud83e\udd801",
+            "tag": "BUTTON"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        }
+      }
+    },
+    {
+      "id": "13-direct-removal-focus",
+      "title": "Direct last-chip removal returns focus to React",
+      "group": "Accessibility",
+      "note": "Same mouse removal, then Shift to reveal the focus position. The after version leaves a reachable persistent React control.",
+      "versions": {
+        "before": {
+          "image": "13-direct-removal-focus/before.png",
+          "full": "13-direct-removal-focus/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [],
+          "lists": [],
+          "focus": {
+            "testid": null,
+            "text": "RiverRiverRoomsTeam Chat Room11Public Discussion Room13Your Private Ro",
+            "tag": "BODY"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "13-direct-removal-focus/after.png",
+          "full": "13-direct-removal-focus/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [],
+          "lists": [],
+          "focus": {
+            "testid": "message-react-button",
+            "text": "",
+            "tag": "BUTTON"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        }
+      }
+    },
+    {
+      "id": "14-list-handoff",
+      "title": "Only the latest reactor list owns inspection",
+      "group": "Lifecycle",
+      "note": "Keyboard inspection moves between two author groups. Before can leave both lists open; after closes the old list and focuses the latest one.",
+      "versions": {
+        "before": {
+          "image": "14-list-handoff/before.png",
+          "full": "14-list-handoff/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 1000
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 480
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": "true",
+              "label": null,
+              "title": "Test Sender A",
+              "focused": false
+            },
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": "true",
+              "label": null,
+              "title": "Test Sender B",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "Test Sender A",
+              "focused": false
+            },
+            {
+              "text": "Test Sender B",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "Test Sender B",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "14-list-handoff/after.png",
+          "full": "14-list-handoff/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 1000
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 480
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender A. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\u2764\ufe0f",
+              "pressed": "false",
+              "expanded": "true",
+              "label": "\u2764\ufe0f, 1 reaction",
+              "title": "Test Sender B. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "React with \u2764\ufe0f\nTest Sender B",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "React with \u2764\ufe0fTest Sender B",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        }
+      }
+    },
+    {
+      "id": "15-dense-phone-light",
+      "title": "320px received-message wrapping in light mode",
+      "group": "Layout",
+      "note": "Twelve chips still wrap inside the message column with one reachable React control.",
+      "versions": {
+        "before": {
+          "image": "15-dense-phone-light/before.png",
+          "full": "15-dense-phone-light/before-full.png",
+          "viewport": {
+            "width": 320,
+            "height": 800
+          },
+          "clip": {
+            "x": 0,
+            "y": 79,
+            "width": 320,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\u27051",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83c\udf891",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc401",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udcaf1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udd251",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude001",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude4c1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd141",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": null,
+            "text": "RiverRiverRoomsTeam Chat Room11Public Discussion Room13Your Private Ro",
+            "tag": "BODY"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "coarse"
+        },
+        "after": {
+          "image": "15-dense-phone-light/after.png",
+          "full": "15-dense-phone-light/after-full.png",
+          "viewport": {
+            "width": 320,
+            "height": 800
+          },
+          "clip": {
+            "x": 0,
+            "y": 79,
+            "width": 320,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\u27051",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\u2705",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\u2705, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\u2764\ufe0f",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\u2764\ufe0f, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83c\udf891",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83c\udf89",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83c\udf89, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc401",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udc40",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\udc40, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udc4d",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\udc4d, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udcaf1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udcaf",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\udcaf, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udd251",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udd25",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\udd25, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude001",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\ude00",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\ude00, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude4c1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\ude4c",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\ude4c, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\ude80",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\ude80, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd141",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd14",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83e\udd14, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": null,
+            "text": "RiverRiverRoomsTeam Chat Room11Public Discussion Room13Your Private Ro",
+            "tag": "BODY"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "coarse"
+        }
+      }
+    },
+    {
+      "id": "16-dense-phone-dark",
+      "title": "320px received-message wrapping in dark mode",
+      "group": "Layout",
+      "note": "The existing dark palette, count contrast, and chip sizes are preserved.",
+      "versions": {
+        "before": {
+          "image": "16-dense-phone-dark/before.png",
+          "full": "16-dense-phone-dark/before-full.png",
+          "viewport": {
+            "width": 320,
+            "height": 800
+          },
+          "clip": {
+            "x": 0,
+            "y": 79,
+            "width": 320,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\u27051",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83c\udf891",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc401",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udcaf1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udd251",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude001",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude4c1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd141",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": null,
+            "text": "RiverRiverRoomsTeam Chat Room11Public Discussion Room13Your Private Ro",
+            "tag": "BODY"
+          },
+          "overflow": false,
+          "theme": "dark",
+          "pointer": "coarse"
+        },
+        "after": {
+          "image": "16-dense-phone-dark/after.png",
+          "full": "16-dense-phone-dark/after-full.png",
+          "viewport": {
+            "width": 320,
+            "height": 800
+          },
+          "clip": {
+            "x": 0,
+            "y": 79,
+            "width": 320,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\u27051",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\u2705",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\u2705, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\u2764\ufe0f",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\u2764\ufe0f, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83c\udf891",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83c\udf89",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83c\udf89, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc401",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udc40",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\udc40, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udc4d",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\udc4d, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udcaf1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udcaf",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\udcaf, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udd251",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udd25",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\udd25, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude001",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\ude00",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\ude00, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude4c1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\ude4c",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\ude4c, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\ude80",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\ude80, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd141",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd14",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83e\udd14, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": null,
+            "text": "RiverRiverRoomsTeam Chat Room11Public Discussion Room13Your Private Ro",
+            "tag": "BODY"
+          },
+          "overflow": false,
+          "theme": "dark",
+          "pointer": "coarse"
+        }
+      }
+    },
+    {
+      "id": "17-dark-switch",
+      "title": "The explicit Switch action in dark mode",
+      "group": "List actions",
+      "note": "The new list action uses the normal theme text and surface tokens.",
+      "versions": {
+        "before": {
+          "image": "17-dark-switch/before.png",
+          "full": "17-dark-switch/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "true",
+              "expanded": null,
+              "label": null,
+              "title": "You (click to remove)",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": "true",
+              "label": null,
+              "title": "Test Sender B",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "Test Sender B",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "Test Sender B",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "dark",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "17-dark-switch/after.png",
+          "full": "17-dark-switch/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "true",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender B. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udc4d",
+              "pressed": "true",
+              "expanded": "false",
+              "label": "\ud83d\udc4d, 1 reaction",
+              "title": "You. Click to remove; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [
+            {
+              "text": "Switch to \ud83e\udd80\nTest Sender B",
+              "focused": true
+            }
+          ],
+          "focus": {
+            "testid": "reaction-owners",
+            "text": "Switch to \ud83e\udd80Test Sender B",
+            "tag": "DIV"
+          },
+          "overflow": false,
+          "theme": "dark",
+          "pointer": "fine"
+        }
+      }
+    },
+    {
+      "id": "18-own-dense-phone",
+      "title": "320px own-message wrapping",
+      "group": "Layout",
+      "note": "Your own row keeps its tint and footer geometry with dense native reaction buttons.",
+      "versions": {
+        "before": {
+          "image": "18-own-dense-phone/before.png",
+          "full": "18-own-dense-phone/before-full.png",
+          "viewport": {
+            "width": 320,
+            "height": 800
+          },
+          "clip": {
+            "x": 0,
+            "y": 79,
+            "width": 320,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\u27051",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83c\udf891",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc401",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udcaf1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udd251",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude001",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude4c1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd141",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender Insert",
+              "focused": false
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "message-input",
+            "text": "",
+            "tag": "TEXTAREA"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "coarse"
+        },
+        "after": {
+          "image": "18-own-dense-phone/after.png",
+          "full": "18-own-dense-phone/after-full.png",
+          "viewport": {
+            "width": 320,
+            "height": 800
+          },
+          "clip": {
+            "x": 0,
+            "y": 79,
+            "width": 320,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\u27051",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\u2705",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\u2705, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\u2764\ufe0f",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\u2764\ufe0f, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83c\udf891",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83c\udf89",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83c\udf89, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc401",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udc40",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\udc40, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udc4d1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udc4d",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\udc4d, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udcaf1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udcaf",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\udcaf, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udd251",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udd25",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\udd25, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude001",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\ude00",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\ude00, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude4c1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\ude4c",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\ude4c, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\ude801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\ude80",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83d\ude80, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd141",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd14",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83e\udd14, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender Insert. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "message-input",
+            "text": "",
+            "tag": "TEXTAREA"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "coarse"
+        }
+      }
+    },
+    {
+      "id": "19-pending-order",
+      "title": "Optimistic order while signing is pending",
+      "group": "Ordering",
+      "note": "Signing is held after the pick: the after UI appends the pending \ud83d\udd25 without disturbing standing \ud83e\udd80 and \u2764\ufe0f.",
+      "versions": {
+        "before": {
+          "image": "19-pending-order/before.png",
+          "full": "19-pending-order/before-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender A",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udd251",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "true",
+              "expanded": null,
+              "label": null,
+              "title": "You (click to remove)",
+              "focused": false
+            },
+            {
+              "text": "\ud83e\udd801",
+              "tag": "SPAN",
+              "role": "button",
+              "emoji": null,
+              "pressed": "false",
+              "expanded": null,
+              "label": null,
+              "title": "Test Sender B",
+              "focused": false
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "message-react-button",
+            "text": "",
+            "tag": "BUTTON"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        },
+        "after": {
+          "image": "19-pending-order/after.png",
+          "full": "19-pending-order/after-full.png",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "clip": {
+            "x": 259,
+            "y": 75,
+            "width": 770,
+            "height": 350
+          },
+          "chips": [
+            {
+              "text": "\ud83e\udd801",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83e\udd80",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\ud83e\udd80, 1 reaction",
+              "title": "Test Sender B. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\u2764\ufe0f1",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\u2764\ufe0f",
+              "pressed": "false",
+              "expanded": "false",
+              "label": "\u2764\ufe0f, 1 reaction",
+              "title": "Test Sender A. Click to react; tap or use the keyboard for details.",
+              "focused": false
+            },
+            {
+              "text": "\ud83d\udd251",
+              "tag": "BUTTON",
+              "role": "button",
+              "emoji": "\ud83d\udd25",
+              "pressed": "true",
+              "expanded": "false",
+              "label": "\ud83d\udd25, 1 reaction",
+              "title": "You. Click to remove; tap or use the keyboard for details.",
+              "focused": false
+            }
+          ],
+          "lists": [],
+          "focus": {
+            "testid": "message-react-button",
+            "text": "",
+            "tag": "BUTTON"
+          },
+          "overflow": false,
+          "theme": "light",
+          "pointer": "fine"
+        }
+      }
+    }
+  ]
+}
