@@ -1,0 +1,19 @@
+{
+  "desktop": [
+    "🦀1",
+    "👍1",
+    "🎉1"
+  ],
+  "title": "Test Sender B, You (click to remove)",
+  "semantics": {
+    "tag": "button",
+    "role": null,
+    "tabindex": null,
+    "pressed": "true"
+  },
+  "mobile": [
+    "🦀1",
+    "👍1",
+    "🎉1"
+  ]
+}
